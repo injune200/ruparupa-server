@@ -56,10 +56,6 @@ git clone https://github.com/injune200/ruparupa-server.git
 
 -----
 
-제공해주신 내용을 바탕으로 사용자가 따라 하기 쉽도록 단계별로 정리한 `README.md`용 마크다운 문구입니다.
-
----
-
 # 데이터베이스 데이터 확인 가이드
 
 ## 1. DBeaver 설치

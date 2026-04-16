@@ -2,33 +2,45 @@ package com.example.demo;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity; // 추가 필요
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity; // 추가 필요
-import org.springframework.security.web.SecurityFilterChain; // 추가 필요
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final OAuth2FailureHandler oAuth2FailureHandler;
 
-    public SecurityConfig(CustomOAuth2UserService customOAuth2UserService) {
-        this.customOAuth2UserService = customOAuth2UserService;
-    }
+    public SecurityConfig(CustomOAuth2UserService customOAuth2UserService, 
+                      OAuth2SuccessHandler oAuth2SuccessHandler,
+                      OAuth2FailureHandler oAuth2FailureHandler) {
+    this.customOAuth2UserService = customOAuth2UserService;
+    this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+    this.oAuth2FailureHandler = oAuth2FailureHandler;
+}
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // 테스트를 위해 CSRF 비활성화
+            .csrf(csrf -> csrf.disable())
+            .formLogin(form -> form.disable()) // 폼 로그인 비활성화
+            .httpBasic(basic -> basic.disable()) // 기본 HTTP 인증 비활성화
+            // 세션을 사용하지 않도록 설정
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/login/**").permitAll() // 로그인 관련 페이지는 누구나 접근 가능
+                .requestMatchers("/", "/login/**", "/oauth2/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
-                .userInfoEndpoint(userInfo -> userInfo
-                    .userService(customOAuth2UserService) // 핵심 로직 클래스 등록
-                )
-                .defaultSuccessUrl("/home", true) // 로그인 성공 후 이동할 페이지
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                // 로그인 성공 시 JWT를 생성해서 전달할 핸들러 등록
+                .successHandler(oAuth2SuccessHandler)
+                .failureHandler(oAuth2FailureHandler) 
             );
 
         return http.build();

@@ -52,5 +52,5 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             System.err.println("OAuth2 로그인 처리 에러: " + e.getMessage());
             throw new OAuth2AuthenticationException("사용자 정보 처리 중 오류 발생");
         }
-    } // loadUser 메서드 닫기 (})
-} // 클래스 전체 닫기 (}) - 이 부분이 빠져있었습니다!
+    }
+}

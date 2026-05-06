@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
-@RequestMapping("/api/currency")
+@RequestMapping("/currency")
 public class CurrencyController {
 
     private final CurrencyService currencyService;
@@ -20,7 +20,7 @@ public class CurrencyController {
      * 재화 획득 및 검증 API
      * 클라이언트가 보낸 (기존 잔액 + 획득량)이 서버의 계산 결과와 일치하는지 확인합니다.
      */
-    @PostMapping("/gain")
+    @PostMapping("/earn")
     public ResponseEntity<?> gainGold(@RequestBody GoldRequest goldRequest, HttpServletRequest request) {
         // 1. 헤더에서 JWT 추출 (Bearer 토큰)
         String authHeader = request.getHeader("Authorization");

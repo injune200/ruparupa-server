@@ -34,7 +34,7 @@ public class SecurityConfig {
             
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/login/**", "/oauth2/**").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/currency/gain").permitAll() // POST 명시 추후 제거?
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/currency/earn").permitAll() // POST 명시 추후 제거?
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

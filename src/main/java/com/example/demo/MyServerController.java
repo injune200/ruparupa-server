@@ -8,7 +8,7 @@ public class MyServerController {
     @GetMapping("/home")
     public String home() {
         return "카카오 로그인에 성공했습니다! 홈 화면입니다.";
-}
+    }
 
     @GetMapping("/a")
     public String pageA() {

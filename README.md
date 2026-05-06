@@ -53,3 +53,39 @@ git clone https://github.com/injune200/ruparupa-server.git
 3.  터미널 콘솔에 `process running for [초]` 메시지가 뜨면 정상적으로 실행된 것입니다.
 4.  **최종 확인:** 크롬 브라우저에서 아래 주소로 접속했을 때 로그인 페이지가 나타나면 성공입니다.
       * [http://localhost:8080/login/oauth2/code/kakao](https://www.google.com/search?q=http://localhost:8080/login/oauth2/code/kakao)
+
+-----
+
+# 데이터베이스 데이터 확인 가이드
+
+## 1. DBeaver 설치
+1. [DBeaver 공식 다운로드 페이지](https://dbeaver.io/download/)에 접속하여 설치 파일을 다운로드합니다.
+2. 설치 프로세스에서 **[Next]**를 계속 눌러 설치를 완료합니다.
+3. 실행 후 나타나는 **데이터 개선 제공(통계 송신)** 및 **샘플 데이터베이스 생성** 팝업은 **[거부/아니오]**를 선택합니다.
+
+---
+
+## 2. 데이터베이스 연결 설정
+1. DBeaver 왼쪽 상단의 **파란색 플러그 아이콘(새 데이터베이스 연결)**을 클릭합니다.
+2. 데이터베이스 목록에서 **MySQL**을 선택합니다.
+3. **Connection Settings**에 `application.yml` 파일의 정보를 참조하여 다음 내용을 입력합니다.
+
+| 항목 | 입력 내용 (application.yml 참조) |
+| :--- | :--- |
+| **Server Host** | 3번째 줄 `url` 부분의 `rupa...com`까지의 주소를 입력 |
+| **Port** | `3306` |
+| **Username** | 4번째줄 `username` 입력 |
+| **Password** | 5번째줄 `password` 입력 |
+
+4. **[완료(Finish)]**를 누릅니다.
+5. 연결 과정에서 **드라이버 다운로드** 창이 뜨면 **[Download]** 버튼을 눌러 설치를 진행합니다.
+
+---
+
+## 3. 데이터 확인 방법
+연결이 완료되면 왼쪽의 **데이터베이스 네비게이터**에서 아래 경로로 이동하여 데이터를 확인할 수 있습니다.
+
+1.  **경로:** `rupa` 연결 선택 ➔ `Databases` ➔ `ruparuap-db-name` ➔ `Tables` ➔ `users`
+2.  `users` 테이블을 더블 클릭합니다.
+3.  우측 화면 상단 탭에서 **[Properties]** 왼쪽에 있는 **[Data]** 탭을 클릭합니다.
+4.  현재 테이블에 저장된 전체 데이터를 확인합니다.

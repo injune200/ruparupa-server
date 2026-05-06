@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import io.jsonwebtoken.Claims; // 추가됨
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -14,29 +15,52 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    // application.yml의 jwt.secret 값을 가져와서 secretKey 변수에 넣습니다.
     @Value("${jwt.secret}")
     private String secretKey;
 
-    // 실제로 암호화에 사용될 Key 객체입니다.
     private Key key;
     
-    // 토큰 유효 시간 (1시간)
+    // 토큰 유효 시간 (현재 10분으로 설정되어 있음)
     private final long expirationTime = 1000 * 60 * 10;
 
-    // 객체가 생성된 후(PostConstruct), 문자열을 실제 Key 객체로 변환합니다.
     @PostConstruct
     public void init() {
-        // 문자열을 바이트 배열로 변환하여 HMAC-SHA 키로 만듭니다.
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
+    // 1. 토큰 생성 기능 (기존과 동일)
     public String generateToken(String nickname) {
         return Jwts.builder()
-                .setSubject(nickname) // 유저 닉네임 저장
-                .setIssuedAt(new Date()) // 발행 시간
-                .setExpiration(new Date(System.currentTimeMillis() + expirationTime)) // 만료 시간
-                .signWith(key, SignatureAlgorithm.HS256) // 3. 지정된 키와 알고리즘으로 서명
+                .setSubject(nickname) 
+                .setIssuedAt(new Date()) 
+                .setExpiration(new Date(System.currentTimeMillis() + expirationTime)) 
+                .signWith(key, SignatureAlgorithm.HS256) 
                 .compact();
+    }
+    /**
+     * 2. 토큰에서 모든 정보(Claims)를 꺼내는 메서드
+     * 서명 키를 이용해 토큰의 유효성을 검증하고 내부 데이터를 복합화합니다.
+     */
+    public Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key) // 발급 시 사용한 키로 검증
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    /**
+     * 3. 토큰에서 사용자 닉네임(Subject)만 추출하는 메서드
+     * CurrencyController에서 이 메서드를 호출하여 유저를 식별합니다.
+     */
+    public String extractNickname(String token) {
+        return extractAllClaims(token).getSubject();
+    }
+
+    /**
+     * 4. 토큰의 만료 여부를 확인하는 메서드 (보안 강화용)
+     */
+    public boolean isTokenExpired(String token) {
+        return extractAllClaims(token).getExpiration().before(new Date());
     }
 }

@@ -20,10 +20,12 @@ public class RoomFurniture {
 
     private String type; // 가구 종류 (예: bed, sofa, bowl)
     
-    // 기획서 [2-1-2. 좌표 체계] 논리 좌표 기준
     private int x; 
     private int y;
     
-    // 어떤 유저(또는 방)의 가구인지 연결하기 위한 방 ID (일단 단순화)
+    private int direction; // 방향 (예: 0, 90, 180, 270 등 회전 각도 또는 0,1,2,3 방향키)
+    private String status = "unused"; // 사용 여부 (used / unused)
+
+    // 어떤 유저(또는 방)의 가구인지 연결하기 위한 방 ID
     private Long roomId; 
 }

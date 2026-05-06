@@ -22,6 +22,9 @@ public class RoomResponseDto {
     @Getter
     @Builder
     public static class RoomDto {
+        private String wallType;      
+        private String floorTileType; 
+        
         private List<FurnitureDto> furnitureList;
     }
 
@@ -32,5 +35,8 @@ public class RoomResponseDto {
         private String type;
         private int x;
         private int y;
+        
+        private int direction; 
+        private String status; 
     }
 }

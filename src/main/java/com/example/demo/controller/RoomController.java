@@ -2,35 +2,53 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.RoomResponseDto;
 import com.example.demo.entity.Pet;
+import com.example.demo.entity.Room;
 import com.example.demo.entity.RoomFurniture;
 import com.example.demo.repository.PetRepository;
 import com.example.demo.repository.RoomFurnitureRepository;
+import com.example.demo.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequiredArgsConstructor // Repository들을 자동으로 연결(주입)해 주는 마법의 어노테이션입니다.
+@RequiredArgsConstructor
 public class RoomController {
 
-    // 점원이 사용할 창고(DB) 열쇠를 쥐어줍니다.
     private final PetRepository petRepository;
-    private final RoomFurnitureRepository furnitureRepository;
+    private final RoomRepository roomRepository;
+    private final RoomFurnitureRepository roomFurnitureRepository;
 
     @GetMapping("/room")
-    public RoomResponseDto getRoomInfo() {
-        
-        // 1. 창고(DB)에서 첫 번째 펫(루파) 정보 꺼내오기
-        Pet pet = petRepository.findById(1L)
-                .orElseThrow(() -> new IllegalArgumentException("펫 정보가 없습니다."));
+    public RoomResponseDto getRoomInfo(@RequestParam(name = "petId", defaultValue = "1") Long petId) {
+        // 1. 펫 정보 가져오기
+        Pet pet = petRepository.findById(petId)
+                .orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
 
-        // 2. 창고(DB)에서 배치된 가구 목록 전부 꺼내오기
-        List<RoomFurniture> furnitures = furnitureRepository.findAll();
+        // 2. 펫의 방(Room) 정보 가져오기 (없으면 에러 처리)
+        Room room = roomRepository.findByPetId(petId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 펫의 방이 존재하지 않습니다."));
 
-        // 3. 꺼내온 진짜 펫 데이터를 프론트엔드가 원하는 포장지(DTO)에 담기
+        // 3. 방에 배치된 가구 리스트 가져오기
+        List<RoomFurniture> furnitureList = roomFurnitureRepository.findByRoomId(room.getId());
+
+        // 4. 가구 엔티티들을 DTO로 변환
+        List<RoomResponseDto.FurnitureDto> furnitureDtos = furnitureList.stream()
+                .map(f -> RoomResponseDto.FurnitureDto.builder()
+                        .id(Math.toIntExact(f.getId()))
+                        .type(f.getType())
+                        .x(f.getX())
+                        .y(f.getY())
+                        .direction(f.getDirection())
+                        .status(f.getStatus())
+                        .build())
+                .collect(Collectors.toList());
+
+        // 5. 최종 응답 DTO 조립
         RoomResponseDto.PetDto petDto = RoomResponseDto.PetDto.builder()
                 .name(pet.getName())
                 .hunger(pet.getHunger())
@@ -38,21 +56,12 @@ public class RoomController {
                 .currentAction(pet.getCurrentAction())
                 .build();
 
-        // 4. 꺼내온 진짜 가구 데이터를 포장지(DTO)에 담기
-        List<RoomResponseDto.FurnitureDto> furnitureDtos = furnitures.stream()
-                .map(f -> RoomResponseDto.FurnitureDto.builder()
-                        .id(f.getId().intValue())
-                        .type(f.getType())
-                        .x(f.getX())
-                        .y(f.getY())
-                        .build())
-                .collect(Collectors.toList());
-
         RoomResponseDto.RoomDto roomDto = RoomResponseDto.RoomDto.builder()
+                .wallType(room.getWallType())           // DB에 저장된 벽지 세팅
+                .floorTileType(room.getFloorTileType()) // DB에 저장된 타일 세팅
                 .furnitureList(furnitureDtos)
                 .build();
 
-        // 5. 최종 응답!
         return RoomResponseDto.builder()
                 .pet(petDto)
                 .room(roomDto)

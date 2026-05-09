@@ -36,14 +36,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String token = jwtUtil.generateToken(nickname);
 
         // DB에서 방금 로그인한 유저 정보를 가져와서 uid를 꺼냅니다.
-        User user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
+        String uid = userRepository.findByNickname(nickname)
+                .map(User::getUid)
+                .orElse("");
 
-        // URL에 uid 파라미터 추가
         String targetUrl = UriComponentsBuilder.fromUriString("ruparupa://auth")
                 .queryParam("accessToken", token)
                 .queryParam("nickname", nickname)
-                .queryParam("uid", user.getUid()) 
+                .queryParam("uid", uid)
                 .build()
                 .encode(StandardCharsets.UTF_8)
                 .toUriString();

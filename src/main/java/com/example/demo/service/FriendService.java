@@ -1,19 +1,23 @@
 package com.example.demo.service;
 
-// 친구 신청의 중복 여부, 본인 신청 여부 등을 체크하고 DB에 저장
-
 import com.example.demo.User;
+import com.example.demo.UserRepository;
 import com.example.demo.dto.FriendDto;
+import com.example.demo.entity.FriendMessage;
 import com.example.demo.entity.FriendRequest;
 import com.example.demo.entity.FriendRequestStatus;
+import com.example.demo.entity.Friendship;
+import com.example.demo.entity.FriendshipStatus;
+import com.example.demo.repository.FriendMessageRepository;
 import com.example.demo.repository.FriendRequestRepository;
 import com.example.demo.repository.FriendshipRepository;
-import com.example.demo.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,167 +26,229 @@ public class FriendService {
     private final UserRepository userRepository;
     private final FriendRequestRepository requestRepository;
     private final FriendshipRepository friendshipRepository;
+    private final FriendMessageRepository messageRepository;
 
-    @Transactional
-    public FriendDto.Response sendFriendRequest(String fromUid, String targetFriendCode) {
-        // 1. 발신 유저 조회
-        User fromUser = userRepository.findByUid(fromUid)
-                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
-
-        // 2. 수신 유저 조회 (친구 코드로)
-        User toUser = userRepository.findAll().stream()
-                .filter(u -> targetFriendCode.equals(u.getFriendCode()))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
-
-        // 3. 본인에게 신청하는지 확인
-        if (fromUser.equals(toUser)) {
-            throw new RuntimeException("SELF_CODE");
+    // ==========================================
+    // 헬퍼 메서드: 엔티티 -> DTO 변환 (코드 중복 방지)
+    // ==========================================
+    private String formatDisplayCode(String code) {
+        if (code != null && code.length() > 4) {
+            return code.substring(0, 4) + "-" + code.substring(4);
         }
+        return code;
+    }
 
-        // 4. 이미 친구인지 확인
-        if (friendshipRepository.existsByUserAndFriend(fromUser, toUser)) {
-            throw new RuntimeException("ALREADY_FRIENDS");
-        }
-
-        // 5. 이미 대기 중인 요청이 있는지 확인
-        if (requestRepository.existsByFromUserAndToUserAndStatus(fromUser, toUser, FriendRequestStatus.PENDING)) {
-            throw new RuntimeException("REQUEST_ALREADY_SENT");
-        }
-
-        // 6. 친구 요청 저장
-        FriendRequest request = new FriendRequest();
-        request.setFromUser(fromUser);
-        request.setToUser(toUser);
-        request.setStatus(FriendRequestStatus.PENDING);
-        
-        FriendRequest saved = requestRepository.save(request);
-
-        return FriendDto.Response.builder()
-                .id(saved.getId())
-                .fromUserId(fromUser.getUid())
-                .fromNickname(fromUser.getNickname())
-                .toUserId(toUser.getUid())
-                .toNickname(toUser.getNickname())
-                .status(saved.getStatus())
-                .createdAt(saved.getCreatedAt())
+    private FriendDto.FriendUser convertToUserDto(User user) {
+        return FriendDto.FriendUser.builder()
+                .userId(user.getUid())
+                .nickname(user.getNickname())
+                .friendCode(user.getFriendCode())
+                .displayFriendCode(formatDisplayCode(user.getFriendCode()))
+                .avatarAssetKey(null)
                 .build();
     }
 
-    // 친구 요청 수락
+    private FriendDto.FriendRequest convertToRequestDto(FriendRequest request) {
+        return FriendDto.FriendRequest.builder()
+                .id("friend_request_" + request.getId())
+                .fromUser(convertToUserDto(request.getFromUser()))
+                .toUser(convertToUserDto(request.getToUser()))
+                .status(request.getStatus())
+                .createdAt(request.getCreatedAt())
+                .respondedAt(request.getRespondedAt())
+                .build();
+    }
+
+    private FriendDto.FriendSummary convertToFriendSummary(Friendship friendship) {
+        return FriendDto.FriendSummary.builder()
+                .friendshipId("friendship_" + friendship.getId())
+                .user(convertToUserDto(friendship.getFriend()))
+                .status(friendship.getStatus())
+                .friendsSince(friendship.getFriendsSince())
+                .build();
+    }
+
+    // ==========================================
+    // 핵심 비즈니스 로직
+    // ==========================================
+
+    // 1. 내 친구 코드 조회
+    @Transactional(readOnly = true)
+    public FriendDto.MyFriendCodeResponse getMyFriendCode(String currentUid) {
+        User user = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        return new FriendDto.MyFriendCodeResponse(user.getFriendCode(), formatDisplayCode(user.getFriendCode()));
+    }
+
+    // 2. 친구 코드로 유저 조회
+    @Transactional(readOnly = true)
+    public FriendDto.FriendUserLookupResponse lookupUserByCode(String currentUid, String targetCode) {
+        User currentUser = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        User targetUser = userRepository.findByFriendCode(targetCode).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+
+        if (currentUser.equals(targetUser)) throw new RuntimeException("SELF_CODE");
+
+        FriendshipStatus status = FriendshipStatus.NONE;
+        if (friendshipRepository.existsByUserAndFriend(currentUser, targetUser)) {
+            status = FriendshipStatus.ACCEPTED;
+        } else if (requestRepository.existsByFromUserAndToUserAndStatus(currentUser, targetUser, FriendRequestStatus.PENDING)) {
+            status = FriendshipStatus.PENDING_SENT;
+        } else if (requestRepository.existsByFromUserAndToUserAndStatus(targetUser, currentUser, FriendRequestStatus.PENDING)) {
+            status = FriendshipStatus.PENDING_RECEIVED;
+        }
+
+        return new FriendDto.FriendUserLookupResponse(convertToUserDto(targetUser), status);
+    }
+
+    // 3. 친구 신청
     @Transactional
-    public FriendDto.Response acceptFriendRequest(String currentUid, Long requestId) {
-        // 1. 요청 존재 여부 확인
-        FriendRequest request = requestRepository.findById(requestId)
-                .orElseThrow(() -> new RuntimeException("REQUEST_NOT_FOUND"));
+    public FriendDto.SingleRequestResponse sendFriendRequest(String currentUid, FriendDto.SendRequest dto) {
+        User fromUser = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        User toUser = userRepository.findByFriendCode(dto.getFriendCode()).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
 
-        // 2. 본인이 받은 요청이 맞는지 권한 확인
-        if (!request.getToUser().getUid().equals(currentUid)) {
-            throw new RuntimeException("UNAUTHORIZED_REQUEST");
-        }
+        if (fromUser.equals(toUser)) throw new RuntimeException("SELF_CODE");
+        if (friendshipRepository.existsByUserAndFriend(fromUser, toUser)) throw new RuntimeException("ALREADY_FRIENDS");
+        if (requestRepository.existsByFromUserAndToUserAndStatus(fromUser, toUser, FriendRequestStatus.PENDING)) throw new RuntimeException("REQUEST_ALREADY_SENT");
+        // 상대방이 나에게 이미 보낸 요청이 있는지도 체크하면 좋지만, 아직 미구현
 
-        // 3. 이미 수락/거절된 요청인지 확인
-        if (request.getStatus() != FriendRequestStatus.PENDING) {
-            throw new RuntimeException("REQUEST_NOT_PENDING");
-        }
+        FriendRequest request = FriendRequest.builder()
+                .fromUser(fromUser)
+                .toUser(toUser)
+                .status(FriendRequestStatus.PENDING)
+                .build();
 
-        // 4. 요청 상태 업데이트
+        requestRepository.save(request);
+        return new FriendDto.SingleRequestResponse(convertToRequestDto(request));
+    }
+
+    // 4. 친구 수락 (md에 맞게 request와 friendship 동시 반환)
+    @Transactional
+    public FriendDto.AcceptRequestResponse acceptFriendRequest(String currentUid, Long requestId) {
+        FriendRequest request = requestRepository.findById(requestId).orElseThrow(() -> new RuntimeException("REQUEST_NOT_FOUND"));
+        if (!request.getToUser().getUid().equals(currentUid)) throw new RuntimeException("UNAUTHORIZED_REQUEST");
+        if (request.getStatus() != FriendRequestStatus.PENDING) throw new RuntimeException("REQUEST_NOT_PENDING");
+
         request.setStatus(FriendRequestStatus.ACCEPTED);
-        request.setRespondedAt(java.time.LocalDateTime.now());
+        request.setRespondedAt(LocalDateTime.now());
 
-        // 5. 양방향(A->B, B->A) 친구 관계(Friendship) 데이터 생성 ⭐(핵심)
-        com.example.demo.entity.Friendship friendship1 = new com.example.demo.entity.Friendship();
-        friendship1.setUser(request.getFromUser());
-        friendship1.setFriend(request.getToUser());
-        friendship1.setStatus(com.example.demo.entity.FriendshipStatus.ACCEPTED);
-
-        com.example.demo.entity.Friendship friendship2 = new com.example.demo.entity.Friendship();
-        friendship2.setUser(request.getToUser());
-        friendship2.setFriend(request.getFromUser());
-        friendship2.setStatus(com.example.demo.entity.FriendshipStatus.ACCEPTED);
+        // 양방향 데이터 생성
+        Friendship friendship1 = Friendship.builder().user(request.getFromUser()).friend(request.getToUser()).status(FriendshipStatus.ACCEPTED).friendsSince(LocalDateTime.now()).build();
+        Friendship friendship2 = Friendship.builder().user(request.getToUser()).friend(request.getFromUser()).status(FriendshipStatus.ACCEPTED).friendsSince(LocalDateTime.now()).build();
 
         friendshipRepository.save(friendship1);
         friendshipRepository.save(friendship2);
 
-        return FriendDto.Response.builder()
-                .id(request.getId())
-                .fromUserId(request.getFromUser().getUid())
-                .fromNickname(request.getFromUser().getNickname())
-                .toUserId(request.getToUser().getUid())
-                .toNickname(request.getToUser().getNickname())
-                .status(request.getStatus())
-                .createdAt(request.getCreatedAt())
-                .build();
+        // 내 입장에서의 요약 정보(friendship2)를 반환합니다.
+        return new FriendDto.AcceptRequestResponse(convertToRequestDto(request), convertToFriendSummary(friendship2));
     }
 
-    // 친구 요청 거절
+    // 5. 친구 거절
     @Transactional
-    public FriendDto.Response rejectFriendRequest(String currentUid, Long requestId) {
-        FriendRequest request = requestRepository.findById(requestId)
-                .orElseThrow(() -> new RuntimeException("REQUEST_NOT_FOUND"));
+    public FriendDto.SingleRequestResponse rejectFriendRequest(String currentUid, Long requestId) {
+        FriendRequest request = requestRepository.findById(requestId).orElseThrow(() -> new RuntimeException("REQUEST_NOT_FOUND"));
+        if (!request.getToUser().getUid().equals(currentUid)) throw new RuntimeException("UNAUTHORIZED_REQUEST");
+        if (request.getStatus() != FriendRequestStatus.PENDING) throw new RuntimeException("REQUEST_NOT_PENDING");
 
-        if (!request.getToUser().getUid().equals(currentUid)) {
-            throw new RuntimeException("UNAUTHORIZED_REQUEST");
-        }
-
-        if (request.getStatus() != FriendRequestStatus.PENDING) {
-            throw new RuntimeException("REQUEST_NOT_PENDING");
-        }
-
-        // 상태만 거절(REJECTED)로 변경하고 친구 관계 테이블은 건드리지 않음
         request.setStatus(FriendRequestStatus.REJECTED);
-        request.setRespondedAt(java.time.LocalDateTime.now());
-
-        return FriendDto.Response.builder()
-                .id(request.getId())
-                .fromUserId(request.getFromUser().getUid())
-                .fromNickname(request.getFromUser().getNickname())
-                .toUserId(request.getToUser().getUid())
-                .toNickname(request.getToUser().getNickname())
-                .status(request.getStatus())
-                .createdAt(request.getCreatedAt())
-                .build();
+        request.setRespondedAt(LocalDateTime.now());
+        return new FriendDto.SingleRequestResponse(convertToRequestDto(request));
     }
 
-    // 친구 목록 조회
+    // 6. 친구 요청 취소
+    @Transactional
+    public FriendDto.SingleRequestResponse cancelFriendRequest(String currentUid, Long requestId) {
+        FriendRequest request = requestRepository.findById(requestId).orElseThrow(() -> new RuntimeException("REQUEST_NOT_FOUND"));
+        if (!request.getFromUser().getUid().equals(currentUid)) throw new RuntimeException("UNAUTHORIZED_REQUEST");
+        if (request.getStatus() != FriendRequestStatus.PENDING) throw new RuntimeException("REQUEST_NOT_PENDING");
+
+        request.setStatus(FriendRequestStatus.CANCELED);
+        request.setRespondedAt(LocalDateTime.now());
+        return new FriendDto.SingleRequestResponse(convertToRequestDto(request));
+    }
+
+    // 7-1. 받은 요청 목록 
+    @Transactional(readOnly = true)
+    public FriendDto.FriendRequestListResponse getReceivedRequests(String currentUid) {
+        User me = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        List<FriendRequest> requests = requestRepository.findByToUserAndStatus(me, FriendRequestStatus.PENDING);
+        return new FriendDto.FriendRequestListResponse(requests.stream().map(this::convertToRequestDto).collect(Collectors.toList()));
+    }
+
+    // 7-2. 보낸 요청 목록
+    @Transactional(readOnly = true)
+    public FriendDto.FriendRequestListResponse getSentRequests(String currentUid) {
+        User me = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        List<FriendRequest> requests = requestRepository.findByFromUserAndStatus(me, FriendRequestStatus.PENDING);
+        return new FriendDto.FriendRequestListResponse(requests.stream().map(this::convertToRequestDto).collect(Collectors.toList()));
+    }
+
+    // 8. 친구 목록 조회
     @Transactional(readOnly = true)
     public FriendDto.FriendListResponse getFriendList(String currentUid) {
-        // 1. 현재 유저 조회
-        User currentUser = userRepository.findByUid(currentUid)
-                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        User me = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        List<Friendship> friendships = friendshipRepository.findByUserAndStatus(me, FriendshipStatus.ACCEPTED);
+        return new FriendDto.FriendListResponse(friendships.stream().map(this::convertToFriendSummary).collect(Collectors.toList()));
+    }
 
-        // 2. 내 친구 관계 리스트 가져오기 (상태가 ACCEPTED인 것만)
-        java.util.List<com.example.demo.entity.Friendship> friendships = 
-                friendshipRepository.findByUserAndStatus(currentUser, com.example.demo.entity.FriendshipStatus.ACCEPTED);
+    // 9. 친구 삭제 (md에 맞춰 대상 유저 ID 기반으로 변경)
+    @Transactional
+    public void deleteFriend(String currentUid, String friendUserId) {
+        User me = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        User friend = userRepository.findByUid(friendUserId).orElseThrow(() -> new RuntimeException("FRIEND_NOT_FOUND"));
 
-        // 3. Entity를 DTO로 변환
-        java.util.List<FriendDto.FriendSummary> friendSummaries = friendships.stream()
-                .map(friendship -> {
-                    User friendUser = friendship.getFriend();
-                    
-                    // 화면 표시용 코드 포맷팅 (LUPAABCDE -> LUPA-ABCDE)
-                    String displayCode = friendUser.getFriendCode();
-                    if (displayCode != null && displayCode.length() > 4) {
-                        displayCode = displayCode.substring(0, 4) + "-" + displayCode.substring(4);
-                    }
+        Friendship myFriendship = friendshipRepository.findByUserAndFriend(me, friend).orElseThrow(() -> new RuntimeException("NOT_FRIENDS"));
+        Friendship friendFriendship = friendshipRepository.findByUserAndFriend(friend, me).orElse(null);
 
-                    FriendDto.FriendUserDto friendUserDto = FriendDto.FriendUserDto.builder()
-                            .userId(friendUser.getUid())
-                            .nickname(friendUser.getNickname())
-                            .friendCode(friendUser.getFriendCode())
-                            .displayFriendCode(displayCode)
-                            .avatarAssetKey(null) // 현재는 프로필 기능이 없으므로 null
-                            .build();
+        friendshipRepository.delete(myFriendship);
+        if (friendFriendship != null) {
+            friendshipRepository.delete(friendFriendship);
+        }
+    }
 
-                    return FriendDto.FriendSummary.builder()
-                            .friendshipId("friendship_" + friendship.getId())
-                            .user(friendUserDto)
-                            .status(friendship.getStatus())
-                            .friendsSince(friendship.getFriendsSince())
-                            .build();
-                })
-                .collect(java.util.stream.Collectors.toList());
+    // 10. 메시지 보내기 (text 파라미터 적용)
+    @Transactional
+    public FriendDto.SingleMessageResponse sendMessage(String currentUid, String friendUserId, FriendDto.MessageRequest request) {
+        User sender = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        User receiver = userRepository.findByUid(friendUserId).orElseThrow(() -> new RuntimeException("RECEIVER_NOT_FOUND"));
 
-        return new FriendDto.FriendListResponse(friendSummaries);
+        if (!friendshipRepository.existsByUserAndFriend(sender, receiver)) throw new RuntimeException("NOT_FRIENDS");
+
+        FriendMessage message = FriendMessage.builder()
+                .fromUser(sender)
+                .toUser(receiver)
+                .content(request.getText()) // DTO의 text를 엔티티의 content에 저장
+                .build();
+
+        messageRepository.save(message);
+
+        return new FriendDto.SingleMessageResponse(FriendDto.FriendMessage.builder()
+                .id("msg_" + message.getId())
+                .friendUserId(receiver.getUid())
+                .senderUserId(sender.getUid())
+                .text(message.getContent())
+                .sentAt(message.getCreatedAt())
+                .build());
+    }
+
+    // 11. 친구와의 메시지 목록 조회 (특정 친구 기반)
+    @Transactional(readOnly = true)
+    public FriendDto.FriendMessagesResponse getMessages(String currentUid, String friendUserId) {
+        User me = userRepository.findByUid(currentUid).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        User friend = userRepository.findByUid(friendUserId).orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+
+        // 내가 받은 메시지 중에서, 특정 친구가 보낸 것만 필터링
+        List<FriendMessage> received = messageRepository.findByToUserOrderByCreatedAtDesc(me);
+        List<FriendDto.FriendMessage> msgs = received.stream()
+                .filter(m -> m.getFromUser().getUid().equals(friendUserId))
+                .map(m -> FriendDto.FriendMessage.builder()
+                        .id("msg_" + m.getId())
+                        .friendUserId(m.getFromUser().getUid()) 
+                        .senderUserId(m.getFromUser().getUid())
+                        .text(m.getContent())
+                        .sentAt(m.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        return new FriendDto.FriendMessagesResponse(msgs, null); // nextCursor는 현재는 null
     }
 }

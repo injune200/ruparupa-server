@@ -36,6 +36,8 @@ public class SecurityConfig {
                 .requestMatchers("/", "/login/**", "/oauth2/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/currency/earn").permitAll() // POST 명시 추후 제거?
                 .requestMatchers("/user/heartbeat", "/user/status").permitAll()
+                .requestMatchers("/friends", "/friends/**").permitAll()
+                .requestMatchers("/error").permitAll() // 디버깅용
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

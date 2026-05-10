@@ -1,3 +1,68 @@
+// package com.example.demo;
+
+// import jakarta.servlet.http.HttpServletRequest;
+// import jakarta.servlet.http.HttpServletResponse;
+// import org.springframework.security.core.Authentication;
+// import org.springframework.security.oauth2.core.user.OAuth2User;
+// import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
+// import org.springframework.stereotype.Component;
+// import org.springframework.web.util.UriComponentsBuilder;
+// import java.io.IOException;
+// import java.nio.charset.StandardCharsets;
+// import java.util.Map;
+
+// @Component
+// public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
+
+//     private final JwtUtil jwtUtil;
+//     private final UserRepository userRepository; // ⭐ 추가
+
+//     // 생성자에 UserRepository 추가
+//     public OAuth2SuccessHandler(JwtUtil jwtUtil, UserRepository userRepository) {
+//         this.jwtUtil = jwtUtil;
+//         this.userRepository = userRepository;
+//     }
+
+//     @Override
+//     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, 
+//                                     Authentication authentication) throws IOException {
+    
+//         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+//         Map<String, Object> attributes = oAuth2User.getAttributes();
+//         Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
+//         Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
+        
+//         String nickname = (String) profile.get("nickname");
+//         String token = jwtUtil.generateToken(nickname);
+
+//         System.out.println("=================================================");
+//         System.out.println("로그인 성공! 유저 닉네임: " + nickname);
+//         System.out.println("발급된 테스트용 토큰 (Bearer 제외):");
+//         System.out.println(token);
+//         System.out.println("=================================================");
+
+//         // DB에서 방금 로그인한 유저 정보를 가져와서 uid를 꺼냅니다.
+//         User user = userRepository.findByNickname(nickname)
+//                 .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
+
+//         String targetUrl = UriComponentsBuilder.fromUriString("ruparupa://auth")
+//                 .queryParam("accessToken", token)
+//                 .queryParam("nickname", nickname)
+//                 .queryParam("uid", user.getUid())
+//                 .build()
+//                 .encode(StandardCharsets.UTF_8)
+//                 .toUriString();
+
+//         // ================= 로그 출력 부분 추가 =================
+//         System.out.println("=================================================");
+//         System.out.println("[OAuth2 Success] 앱으로 리다이렉트를 시도합니다.");
+//         System.out.println("목적지 URL: " + targetUrl);
+//         System.out.println("=================================================");
+//         // =====================================================
+
+//         getRedirectStrategy().sendRedirect(request, response, targetUrl);
+//     }
+// }
 package com.example.demo;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -6,8 +71,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -15,51 +80,37 @@ import java.util.Map;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository; // ⭐ 추가
 
-    // 생성자에 UserRepository 추가
-    public OAuth2SuccessHandler(JwtUtil jwtUtil, UserRepository userRepository) {
+    public OAuth2SuccessHandler(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
-        this.userRepository = userRepository;
     }
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, 
-                                    Authentication authentication) throws IOException {
-    
+    public void onAuthenticationSuccess(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Authentication authentication
+    ) throws IOException {
+
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+
         Map<String, Object> attributes = oAuth2User.getAttributes();
-        Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
-        Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
-        
+        Map<String, Object> kakaoAccount =
+                (Map<String, Object>) attributes.get("kakao_account");
+
+        Map<String, Object> profile =
+                (Map<String, Object>) kakaoAccount.get("profile");
+
         String nickname = (String) profile.get("nickname");
+
         String token = jwtUtil.generateToken(nickname);
 
-        System.out.println("=================================================");
-        System.out.println("로그인 성공! 유저 닉네임: " + nickname);
-        System.out.println("발급된 테스트용 토큰 (Bearer 제외):");
-        System.out.println(token);
-        System.out.println("=================================================");
+        String redirectUrl =
+                "ruparupa://auth?accessToken="
+                        + URLEncoder.encode(token, StandardCharsets.UTF_8)
+                        + "&nickname="
+                        + URLEncoder.encode(nickname, StandardCharsets.UTF_8);
 
-        // DB에서 방금 로그인한 유저 정보를 가져와서 uid를 꺼냅니다.
-        User user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
-
-        String targetUrl = UriComponentsBuilder.fromUriString("ruparupa://auth")
-                .queryParam("accessToken", token)
-                .queryParam("nickname", nickname)
-                .queryParam("uid", user.getUid())
-                .build()
-                .encode(StandardCharsets.UTF_8)
-                .toUriString();
-
-        // ================= 로그 출력 부분 추가 =================
-        System.out.println("=================================================");
-        System.out.println("[OAuth2 Success] 앱으로 리다이렉트를 시도합니다.");
-        System.out.println("목적지 URL: " + targetUrl);
-        System.out.println("=================================================");
-        // =====================================================
-
-        getRedirectStrategy().sendRedirect(request, response, targetUrl);
+        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 }

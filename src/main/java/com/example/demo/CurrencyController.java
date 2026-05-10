@@ -3,6 +3,8 @@ package com.example.demo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/currency")
@@ -16,40 +18,43 @@ public class CurrencyController {
         this.jwtUtil = jwtUtil;
     }
 
-    /**
-     * 재화 획득 및 검증 API
-     * 클라이언트가 보낸 (기존 잔액 + 획득량)이 서버의 계산 결과와 일치하는지 확인합니다.
-     */
     @PostMapping("/earn")
     public ResponseEntity<?> gainGold(@RequestBody GoldRequest goldRequest, HttpServletRequest request) {
-        // 1. 헤더에서 JWT 추출 (Bearer 토큰)
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body("인증 토큰이 없습니다.");
+            return ResponseEntity.status(401).body(Map.of("status", "fail", "message", "인증 토큰이 없습니다."));
         }
 
         String token = authHeader.substring(7);
+        Map<String, Object> response = new HashMap<>();
         
         try {
-            // 2. 토큰에서 닉네임 추출 (JwtUtil 활용)
             String nickname = jwtUtil.extractNickname(token); 
 
-            // 3. 재화 지급 및 검증 로직 실행
-            // 서비스에서 서버 DB 잔액 + amount == goldRequest.getTotal() 인지 검사합니다.
+            // 재화 지급 및 검증 실행
             Long updatedGold = currencyService.gainGoldWithVerification(
                 nickname, 
                 goldRequest.getAmount(), 
                 goldRequest.getTotal()
             );
 
-            return ResponseEntity.ok("검증 완료 및 재화 획득 성공! 현재 잔액: " + updatedGold);
+            // 성공 응답: { "status": "success" }
+            response.put("status", "success");
+            return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
-            // 검증 실패(데이터 부정합) 또는 사용자를 찾을 수 없는 경우
-            return ResponseEntity.status(400).body("검증 에러: " + e.getMessage());
+            // 검증 실패 시: { "status": "fail", "total": 현재서버잔액 }
+            // 서비스에서 현재 잔액을 함께 던져주도록 설계하거나, 여기서 조회할 수 있습니다.
+            response.put("status", "fail");
+            
+            // 에러 메시지에 포함된 현재 잔액 정보를 파싱하거나 별도 조회 필요
+            // 여기서는 흐름상 실패 상태와 현재 (조작 전) 잔액을 반환하도록 구성합니다.
+            response.put("total", currencyService.getCurrentGold(jwtUtil.extractNickname(token)));
+            return ResponseEntity.status(400).body(response);
+            
         } catch (Exception e) {
-            // 토큰 위변조 또는 기타 서버 에러
-            return ResponseEntity.status(403).body("유효하지 않은 요청입니다.");
+            response.put("status", "fail");
+            return ResponseEntity.status(403).body(response);
         }
     }
 }

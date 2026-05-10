@@ -35,6 +35,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/login/**", "/oauth2/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/currency/earn", "/shop/items").permitAll() // 토큰 없이 테스트 용도 추후 제거
+                .requestMatchers("/user/heartbeat","/user/status").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

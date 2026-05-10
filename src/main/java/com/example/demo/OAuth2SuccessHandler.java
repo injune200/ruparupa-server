@@ -7,7 +7,6 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -16,9 +15,12 @@ import java.util.Map;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository; // ⭐ 추가
 
-    public OAuth2SuccessHandler(JwtUtil jwtUtil) {
+    // 생성자에 UserRepository 추가
+    public OAuth2SuccessHandler(JwtUtil jwtUtil, UserRepository userRepository) {
         this.jwtUtil = jwtUtil;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -27,23 +29,30 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         Map<String, Object> attributes = oAuth2User.getAttributes();
-
         Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
+        
         String nickname = (String) profile.get("nickname");
-
-        // JWT 생성[cite: 15]
         String token = jwtUtil.generateToken(nickname);
 
-        // 앱으로 돌아가기 위한 딥링크 URL 생성 (ruparupa://auth)
+        System.out.println("=================================================");
+        System.out.println("로그인 성공! 유저 닉네임: " + nickname);
+        System.out.println("발급된 테스트용 토큰 (Bearer 제외):");
+        System.out.println(token);
+        System.out.println("=================================================");
+
+        // DB에서 방금 로그인한 유저 정보를 가져와서 uid를 꺼냅니다.
+        User user = userRepository.findByNickname(nickname)
+                .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
+
         String targetUrl = UriComponentsBuilder.fromUriString("ruparupa://auth")
                 .queryParam("accessToken", token)
                 .queryParam("nickname", nickname)
+                .queryParam("uid", user.getUid())
                 .build()
                 .encode(StandardCharsets.UTF_8)
                 .toUriString();
 
-        // 기존의 JSON 출력 코드를 지우고 아래 리다이렉트 코드를 사용합니다.
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }

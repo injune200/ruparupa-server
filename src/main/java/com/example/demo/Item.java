@@ -15,10 +15,14 @@ public class Item {
     private String itemId; // 예: "item_hat_1"
 
     @Column(nullable = false)
+    private String itemName; // 아이템 이름 필드 추가
+
+    @Column(nullable = false)
     private int price; // 서버에 저장된 실제 가격
 
-    public Item(String itemId, int price) {
+    public Item(String itemId, String itemName,int price) {
         this.itemId = itemId;
+        this.itemName = itemName;
         this.price = price;
     }
 }

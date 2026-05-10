@@ -43,19 +43,24 @@ class ShopRequest {
 
 class ItemRequest {
     private String itemId;
+    private String itemName;
     private int price;
     public String getItemId() { return itemId; }
+    public String getItemName() { return itemName; }
     public int getPrice() { return price; }
 }
 
 class ItemResponse {
     private String itemId;
+    private String itemName; // 서버에 저장된 실제 이름
     private int serverPrice; // 서버에 기록된 실제 가격
 
-    public ItemResponse(String itemId, int serverPrice) {
+    public ItemResponse(String itemId, String itemName,int serverPrice) {
         this.itemId = itemId;
+        this.itemName = itemName;
         this.serverPrice = serverPrice;
     }
     public String getItemId() { return itemId; }
+    public String getItemName() { return itemName; }
     public int getServerPrice() { return serverPrice; }
 }

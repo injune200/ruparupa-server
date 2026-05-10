@@ -18,23 +18,30 @@ public class ShopService {
     }
 
     public List<ItemResponse> getMismatchedItems(List<ItemRequest> clientItems) {
-        List<ItemResponse> mismatched = new ArrayList<>();
+    List<ItemResponse> mismatched = new ArrayList<>();
 
-        for (ItemRequest clientItem : clientItems) {
-            // DB에서 아이템 아이디로 정보를 조회합니다.
-            Optional<Item> itemOpt = itemRepository.findById(clientItem.getItemId());
+    for (ItemRequest clientItem : clientItems) {
+        Optional<Item> itemOpt = itemRepository.findById(clientItem.getItemId());
 
-            if (itemOpt.isPresent()) {
-                Item serverItem = itemOpt.get();
-                // DB의 진짜 가격과 클라이언트가 보낸 가격을 비교합니다.
-                if (serverItem.getPrice() != clientItem.getPrice()) {
-                    mismatched.add(new ItemResponse(serverItem.getItemId(), serverItem.getPrice()));
-                }
-            } else {
-                // DB에 없는 아이템 아이디인 경우 -1로 응답 처리
-                mismatched.add(new ItemResponse(clientItem.getItemId(), -1));
+        if (itemOpt.isPresent()) {
+            Item serverItem = itemOpt.get();
+            
+            // 이름 또는 가격이 하나라도 다르면 검증 실패
+            boolean isNameMismatch = !serverItem.getItemName().equals(clientItem.getItemName());
+            boolean isPriceMismatch = serverItem.getPrice() != clientItem.getPrice();
+
+            if (isNameMismatch || isPriceMismatch) {
+                mismatched.add(new ItemResponse(
+                    serverItem.getItemId(), 
+                    serverItem.getItemName(), 
+                    serverItem.getPrice()
+                ));
             }
+        } else {
+            // DB에 없는 아이템인 경우
+            mismatched.add(new ItemResponse(clientItem.getItemId(), "Unknown Item", -1));
         }
-        return mismatched;
+    }
+    return mismatched;
     }
 }

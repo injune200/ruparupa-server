@@ -12,12 +12,16 @@ public class Invitation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long senderId;    // 초대를 보낸 사람 ID
-    private Long receiverId;  // 초대 받은 친구 ID
-    private Long roomId;      // 초대할 방의 ID
+    private Long senderId;
+    private Long receiverId;
+    private Long roomId;
 
-    private String status;
+    private String status; // PENDING, ACCEPTED, REJECTED 등
 
     private LocalDateTime createdAt;
-    private LocalDateTime expiresAt; // 만료 시간
+    private LocalDateTime expiresAt;
+
+
+    private String message;           // 우리 집 구경 올래? 메시지 저장 칸
+    private LocalDateTime respondedAt; // 수락이나 거절을 누른 시간 기록 칸
 }

@@ -15,7 +15,8 @@ public class ShopService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final InventoryRepository inventoryRepository; 
-    // 생성자 주입 (의존성 추가)
+
+    // 생성자 주입
     public ShopService(ItemRepository itemRepository, UserRepository userRepository, InventoryRepository inventoryRepository) {
         this.itemRepository = itemRepository;
         this.userRepository = userRepository;
@@ -35,19 +36,30 @@ public class ShopService {
         Item item = itemRepository.findById(request.getItemId())
                 .orElseThrow(() -> new RuntimeException("아이템 정보가 없습니다."));
 
+        //클라이언트가 보낸 가격이 서버의 실제 가격과 일치하는지 확인
+        if (item.getPrice() != request.getPrice()) {
+            throw new RuntimeException("아이템 가격 정보가 서버와 일치하지 않습니다.");
+        }
+
         // 3. 가격 및 잔액 검증
+        // 획득하려는 총 수량을 고려한 서버측 계산 비용
         int totalCost = item.getPrice() * request.getAmount();
         
-        // 클라이언트가 보낸 잔액과 서버의 실제 잔액이 맞는지, 그리고 살 돈이 있는지 체크
-        if (user.getGold() < totalCost || !user.getGold().equals(request.getBalance())) {
-            throw new RuntimeException("잔액이 부족하거나 데이터 부정합이 발생했습니다.");
+        // 총 비용이 현재 유저의 잔액보다 많은지 확인
+        if (user.getGold() < totalCost) {
+            throw new RuntimeException("잔액이 부족하여 아이템을 구매할 수 없습니다.");
+        }
+
+        // 데이터 정합성 확인 (클라이언트가 알고 있는 잔액과 서버의 실제 잔액이 맞는지)
+        if (!user.getGold().equals(request.getBalance())) {
+            throw new RuntimeException("잔액 데이터 부정합이 발생했습니다. 다시 시도해주세요.");
         }
 
         // 4. 재화 차감 및 저장
         user.setGold(user.getGold() - totalCost);
         userRepository.save(user);
 
-        // 5. 인벤토리 업데이트 (이미 같은 아이템이 있다면 수량만 증가, 없으면 새로 생성)
+        // 5. 인벤토리 업데이트
         Inventory inventory = inventoryRepository.findByUserAndItemId(user, item.getItemId())
                 .map(inv -> {
                     inv.setCount(inv.getCount() + request.getAmount());
@@ -71,7 +83,7 @@ public class ShopService {
     }
 
     /**
-     * 기존 코드: 상점 아이템 가격 검증 로직
+     * 상점 아이템 가격 전체 검증 로직 (목록 대조용)
      */
     public List<ItemResponse> getMismatchedItems(List<ItemRequest> clientItems) {
         List<ItemResponse> mismatched = new ArrayList<>();
@@ -82,7 +94,6 @@ public class ShopService {
             if (itemOpt.isPresent()) {
                 Item serverItem = itemOpt.get();
                 
-                // 이름 또는 가격이 하나라도 다르면 검증 실패
                 boolean isNameMismatch = !serverItem.getItemName().equals(clientItem.getItemName());
                 boolean isPriceMismatch = serverItem.getPrice() != clientItem.getPrice();
 
@@ -94,7 +105,6 @@ public class ShopService {
                     ));
                 }
             } else {
-                // DB에 없는 아이템인 경우
                 mismatched.add(new ItemResponse(clientItem.getItemId(), "Unknown Item", -1));
             }
         }

@@ -37,7 +37,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         System.out.println("=================================================");
         System.out.println("로그인 성공! 유저 닉네임: " + nickname);
-        System.out.println("발급된 테스트용 토큰 (Bearer 제외):");
+        System.out.println("발급된 테스트용 토큰:");
         System.out.println(token);
         System.out.println("=================================================");
 
@@ -52,13 +52,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .build()
                 .encode(StandardCharsets.UTF_8)
                 .toUriString();
-
-        // ================= 로그 출력 부분 추가 =================
-        System.out.println("=================================================");
-        System.out.println("[OAuth2 Success] 앱으로 리다이렉트를 시도합니다.");
-        System.out.println("목적지 URL: " + targetUrl);
-        System.out.println("=================================================");
-        // =====================================================
 
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }

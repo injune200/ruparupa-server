@@ -3,7 +3,7 @@ package com.example.demo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+// 두 번째 인자를 String에서 Integer로 변경하세요
 @Repository
-public interface ItemRepository extends JpaRepository<Item, String> {
-    // 기본적으로 제공되는 findById(itemId)를 사용하여 조회합니다.
+public interface ItemRepository extends JpaRepository<Item, Integer> { 
 }

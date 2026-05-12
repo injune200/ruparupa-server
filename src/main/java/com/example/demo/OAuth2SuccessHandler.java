@@ -15,9 +15,8 @@ import java.util.Map;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository; 
+    private final UserRepository userRepository;
 
-    // 생성자에 UserRepository 추가
     public OAuth2SuccessHandler(JwtUtil jwtUtil, UserRepository userRepository) {
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
@@ -31,23 +30,24 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         Map<String, Object> attributes = oAuth2User.getAttributes();
         Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
-        
         String nickname = (String) profile.get("nickname");
-        User user = userRepository.findByNickname(nickname)
-        .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
 
+        // DB에서 유저 정보를 가져와서 고유 UID를 꺼냅니다.
+        User user = userRepository.findByNickname(nickname)
+                .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
+        
         String token = jwtUtil.generateToken(user.getUid());
 
-        // 테스트용 임시로 추가하는 콘솔 출력 코드
-        System.out.println("=========================================");
-        System.out.println("발급된 테스트용 토큰: " + token);
-        System.out.println("=========================================");
+        // 팀원들을 위한 콘솔 출력 유지
+        System.out.println("=================================================");
+        System.out.println("로그인 성공! 유저 닉네임: " + nickname);
+        System.out.println("발급된 테스트용 토큰: Bearer " + token);
+        System.out.println("=================================================");
 
-        // URL에 uid 파라미터 추가
         String targetUrl = UriComponentsBuilder.fromUriString("ruparupa://auth")
                 .queryParam("accessToken", token)
                 .queryParam("nickname", nickname)
-                .queryParam("uid", user.getUid()) 
+                .queryParam("uid", user.getUid())
                 .build()
                 .encode(StandardCharsets.UTF_8)
                 .toUriString();

@@ -3,6 +3,8 @@ package com.example.demo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/currency")
@@ -11,24 +13,31 @@ public class CurrencyController {
 
     private final CurrencyService currencyService;
 
-    /**
-     * 재화 획득 및 검증 API
-     */
     @PostMapping("/earn")
     public ResponseEntity<?> gainGold(
-            @RequestAttribute("currentUid") String currentUid,
+            @RequestAttribute("currentUid") String currentUid, 
             @RequestBody GoldRequest goldRequest) {
         
+        Map<String, Object> response = new HashMap<>();
         try {
+            // 인터셉터가 검증한 currentUid를 바로 사용
             Long updatedGold = currencyService.gainGoldWithVerification(
-                currentUid, // nickname 대신 안전한 currentUid 사용
+                currentUid, 
                 goldRequest.getAmount(), 
                 goldRequest.getTotal()
             );
-            return ResponseEntity.ok("검증 완료 및 재화 획득 성공! 현재 잔액: " + updatedGold);
             
+            response.put("status", "success");
+            response.put("total", updatedGold);
+            return ResponseEntity.ok(response);
+
         } catch (RuntimeException e) {
-            return ResponseEntity.status(400).body("검증 에러: " + e.getMessage());
+            response.put("status", "fail");
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(400).body(response);
+        } catch (Exception e) {
+            response.put("status", "fail");
+            return ResponseEntity.status(403).body(response);
         }
     }
 }
@@ -36,7 +45,6 @@ public class CurrencyController {
 class GoldRequest {
     private int amount;
     private Long total;
-
     public int getAmount() { return amount; }
     public void setAmount(int amount) { this.amount = amount; }
     public Long getTotal() { return total; }

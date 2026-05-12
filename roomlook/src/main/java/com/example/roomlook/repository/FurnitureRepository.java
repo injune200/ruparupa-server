@@ -11,3 +11,4 @@ public interface FurnitureRepository extends JpaRepository<Furniture, Long> {
     // 저장하기 전에 기존 배치를 지우기 위한 기능
     void deleteByUid(String uid);
 }
+

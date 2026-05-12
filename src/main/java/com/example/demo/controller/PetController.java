@@ -15,19 +15,25 @@ public class PetController {
 
     // 1. 밥 먹이기 API
     @PostMapping("/{petId}/feed")
-    public ResponseEntity<Pet> feedPet(@PathVariable(name = "petId") Long petId) {
-        return ResponseEntity.ok(petService.feedPet(petId));
+    public ResponseEntity<Pet> feedPet(
+            @RequestAttribute("currentUid") String currentUid,
+            @PathVariable(name = "petId") Long petId) {
+        return ResponseEntity.ok(petService.feedPet(currentUid, petId));
     }
 
     // 2. 잠재우기 API
     @PostMapping("/{petId}/sleep")
-    public ResponseEntity<Pet> sleepPet(@PathVariable(name = "petId") Long petId) {
-        return ResponseEntity.ok(petService.sleepPet(petId));
+    public ResponseEntity<Pet> sleepPet(
+            @RequestAttribute("currentUid") String currentUid,
+            @PathVariable(name = "petId") Long petId) {
+        return ResponseEntity.ok(petService.sleepPet(currentUid, petId));
     }
 
     // 3. 놀아주기 API
     @PostMapping("/{petId}/play")
-    public ResponseEntity<Pet> playWithPet(@PathVariable(name = "petId") Long petId) {
-        return ResponseEntity.ok(petService.playWithPet(petId));
+    public ResponseEntity<Pet> playWithPet(
+            @RequestAttribute("currentUid") String currentUid,
+            @PathVariable(name = "petId") Long petId) {
+        return ResponseEntity.ok(petService.playWithPet(currentUid, petId));
     }
 }

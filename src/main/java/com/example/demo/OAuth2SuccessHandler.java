@@ -28,12 +28,17 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         Map<String, Object> attributes = oAuth2User.getAttributes();
+        
+        // 1. 카카오 최상위 속성에서 고유 ID를 추출합니다.
+        Long kakaoId = (Long) attributes.get("id");
+
+        // 닉네임은 프론트엔드에 전달하거나 표시하기 위해 기존처럼 추출만 해둡니다.
         Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
         Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
         String nickname = (String) profile.get("nickname");
 
-        // DB에서 유저 정보를 가져와서 고유 UID를 꺼냅니다.
-        User user = userRepository.findByNickname(nickname)
+        // 2. 닉네임(findByNickname)이 아닌, 카카오 고유 ID(findByKakaoId)로 유저를 안전하게 조회합니다.
+        User user = userRepository.findByKakaoId(kakaoId)
                 .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
         
         String token = jwtUtil.generateToken(user.getUid());

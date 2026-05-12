@@ -33,6 +33,11 @@ public class RoomController {
         Pet pet = petRepository.findById(petId)
                 .orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
 
+        // 소유권 검증 로직 추가: 내 펫(방)이 아니면 예외 발생
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 방 정보만 조회할 수 있습니다.");
+        }
+
         // 2. 펫의 방(Room) 정보 가져오기 (없으면 에러 처리)
         Room room = roomRepository.findByPetId(petId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 펫의 방이 존재하지 않습니다."));

@@ -3,9 +3,9 @@ package com.example.demo.service;
 import com.example.demo.User;
 import com.example.demo.entity.Pet;
 import com.example.demo.entity.Room;
-import com.example.demo.entity.RoomFurniture; // 추가
+import com.example.demo.entity.RoomFurniture;
 import com.example.demo.repository.PetRepository;
-import com.example.demo.repository.RoomFurnitureRepository; // 추가
+import com.example.demo.repository.RoomFurnitureRepository;
 import com.example.demo.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,9 +20,9 @@ public class PetService {
 
     private final PetRepository petRepository;
     private final RoomRepository roomRepository;
-    private final RoomFurnitureRepository roomFurnitureRepository; // 가구 배치를 위해 추가
+    private final RoomFurnitureRepository roomFurnitureRepository;
 
-    // 0. 최초 로그인 시 펫, 방, 기본 가구 3종 세트 자동 생성
+    // 0. 최초 로그인 시 펫, 방, 기본 가구 3종 세트 자동 생성 (수정 없음)
     @Transactional
     public void createInitialSetup(User user) {
         String[] personalities = {"ACTIVE", "CALM", "LAZY"};
@@ -41,7 +41,6 @@ public class PetService {
         room.setFloorTileType("default_tile");
         Room savedRoom = roomRepository.save(room);
 
-        // 가구 3종 세트 자동 배치 (침대, 장난감 박스, 사료 봉투)
         RoomFurniture bed = new RoomFurniture();
         bed.setRoomId(savedRoom.getId());
         bed.setType("bed");
@@ -62,9 +61,14 @@ public class PetService {
 
     // 1. 밥 먹이기 (사료 봉투 상호작용)
     @Transactional
-    public Pet feedPet(Long petId) {
+    public Pet feedPet(String currentUid, Long petId) {
         Pet pet = petRepository.findById(petId).orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
         
+        // 소유권 검증 로직
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 펫만 조작할 수 있습니다.");
+        }
+
         // 상태 검증
         if ("SLEEPING".equals(pet.getCurrentAction())) {
             throw new IllegalStateException("펫이 자고 있어서 먹이를 줄 수 없습니다.");
@@ -80,8 +84,13 @@ public class PetService {
 
     // 2. 잠재우기 (침대 상호작용)
     @Transactional
-    public Pet sleepPet(Long petId) {
+    public Pet sleepPet(String currentUid, Long petId) {
         Pet pet = petRepository.findById(petId).orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+        
+        // 소유권 검증 로직
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 펫만 조작할 수 있습니다.");
+        }
 
         // 상태 검증
         if ("SLEEPING".equals(pet.getCurrentAction())) {
@@ -95,8 +104,13 @@ public class PetService {
 
     // 3. 놀아주기 (장난감 박스 상호작용)
     @Transactional
-    public Pet playWithPet(Long petId) {
+    public Pet playWithPet(String currentUid, Long petId) {
         Pet pet = petRepository.findById(petId).orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+        
+        // 소유권 검증 로직
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 펫만 조작할 수 있습니다.");
+        }
 
         // 상태 검증
         if ("SLEEPING".equals(pet.getCurrentAction())) {

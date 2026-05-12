@@ -15,7 +15,7 @@ import java.util.Map;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository; // ⭐ 추가
+    private final UserRepository userRepository; 
 
     // 생성자에 UserRepository 추가
     public OAuth2SuccessHandler(JwtUtil jwtUtil, UserRepository userRepository) {
@@ -33,11 +33,15 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
         
         String nickname = (String) profile.get("nickname");
-        String token = jwtUtil.generateToken(nickname);
-
-        // DB에서 방금 로그인한 유저 정보를 가져와서 uid를 꺼냅니다.
         User user = userRepository.findByNickname(nickname)
-                .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
+        .orElseThrow(() -> new RuntimeException("유저 정보를 찾을 수 없습니다."));
+
+        String token = jwtUtil.generateToken(user.getUid());
+
+        // 테스트용 임시로 추가하는 콘솔 출력 코드
+        System.out.println("=========================================");
+        System.out.println("발급된 테스트용 토큰: " + token);
+        System.out.println("=========================================");
 
         // URL에 uid 파라미터 추가
         String targetUrl = UriComponentsBuilder.fromUriString("ruparupa://auth")

@@ -38,6 +38,7 @@ public class SecurityConfig {
                 .requestMatchers("/user/heartbeat", "/user/status").permitAll()
                 .requestMatchers("/users/**").permitAll()
                 .requestMatchers("/friends", "/friends/**").permitAll()
+                .requestMatchers("/room/**", "/api/pets/**").permitAll()
                 .requestMatchers("/error").permitAll() // 디버깅용
                 .anyRequest().authenticated()
             )

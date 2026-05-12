@@ -30,7 +30,7 @@ public class ShopController {
 
         try {
             String token = authHeader.substring(7);
-            String nickname = jwtUtil.extractNickname(token);
+            String nickname = jwtUtil.extractUid(token);
 
             PurchaseResponse response = shopService.purchaseItem(nickname, purchaseRequest);
             return ResponseEntity.ok(response);

@@ -9,6 +9,7 @@ import com.example.demo.repository.RoomFurnitureRepository;
 import com.example.demo.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestAttribute; 
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,7 +25,10 @@ public class RoomController {
     private final RoomFurnitureRepository roomFurnitureRepository;
 
     @GetMapping("/room")
-    public RoomResponseDto getRoomInfo(@RequestParam(name = "petId", defaultValue = "1") Long petId) {
+    public RoomResponseDto getRoomInfo(
+            @RequestAttribute("currentUid") String currentUid, 
+            @RequestParam(name = "petId", defaultValue = "1") Long petId) {
+            
         // 1. 펫 정보 가져오기
         Pet pet = petRepository.findById(petId)
                 .orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
@@ -48,17 +52,17 @@ public class RoomController {
                         .build())
                 .collect(Collectors.toList());
 
-        // 5. 최종 응답 DTO 조립
+        // 5. 최종 응답 DTO 조립 
         RoomResponseDto.PetDto petDto = RoomResponseDto.PetDto.builder()
                 .name(pet.getName())
                 .hunger(pet.getHunger())
-                .energy(pet.getEnergy())
+                .stamina(pet.getStamina()) 
                 .currentAction(pet.getCurrentAction())
                 .build();
 
         RoomResponseDto.RoomDto roomDto = RoomResponseDto.RoomDto.builder()
-                .wallType(room.getWallType())           // DB에 저장된 벽지 세팅
-                .floorTileType(room.getFloorTileType()) // DB에 저장된 타일 세팅
+                .wallType(room.getWallType())
+                .floorTileType(room.getFloorTileType())
                 .furnitureList(furnitureDtos)
                 .build();
 

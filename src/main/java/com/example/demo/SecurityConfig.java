@@ -18,33 +18,32 @@ public class SecurityConfig {
     public SecurityConfig(CustomOAuth2UserService customOAuth2UserService, 
                       OAuth2SuccessHandler oAuth2SuccessHandler,
                       OAuth2FailureHandler oAuth2FailureHandler) {
-    this.customOAuth2UserService = customOAuth2UserService;
-    this.oAuth2SuccessHandler = oAuth2SuccessHandler;
-    this.oAuth2FailureHandler = oAuth2FailureHandler;
-}
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+        this.oAuth2FailureHandler = oAuth2FailureHandler;
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            .formLogin(form -> form.disable()) // 폼 로그인 비활성화
-            .httpBasic(basic -> basic.disable()) // 기본 HTTP 인증 비활성화
-            // 세션을 사용하지 않도록 설정
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/login/**", "/oauth2/**").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/currency/earn", "/shop/**").permitAll() // 토큰 없이 테스트 용도 추후 제거
-                .requestMatchers("/user/heartbeat","/user/status").permitAll()
+                .requestMatchers("/", "/login/**", "/oauth2/**", "/error").permitAll()
+                .requestMatchers("/currency/earn", "/shop/**").permitAll() 
+                .requestMatchers("/user/heartbeat", "/user/status", "/users/**").permitAll()
+                .requestMatchers("/friends", "/friends/**").permitAll()
+                .requestMatchers("/room/**", "/api/pets/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
                 .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                // 로그인 성공 시 JWT를 생성해서 전달할 핸들러 등록
                 .successHandler(oAuth2SuccessHandler)
                 .failureHandler(oAuth2FailureHandler) 
             );
-
         return http.build();
     }
 }

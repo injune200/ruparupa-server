@@ -22,19 +22,14 @@ public class ShopController {
      * 상점 구매 및 인벤토리 동기화 API
      */
     @PostMapping("/purchase")
-    public ResponseEntity<?> purchaseItem(@RequestBody PurchaseRequest purchaseRequest, HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body(Map.of("status", "fail", "message", "인증이 필요합니다."));
-        }
+    public ResponseEntity<?> purchaseItem(
+            @RequestAttribute("currentUid") String currentUid, 
+            @RequestBody PurchaseRequest purchaseRequest) {
 
         try {
-            String token = authHeader.substring(7);
-            String nickname = jwtUtil.extractUid(token);
-
-            PurchaseResponse response = shopService.purchaseItem(nickname, purchaseRequest);
+            
+            PurchaseResponse response = shopService.purchaseItem(currentUid, purchaseRequest);
             return ResponseEntity.ok(response);
-
         } catch (RuntimeException e) {
             return ResponseEntity.status(400).body(Map.of("status", "fail", "message", e.getMessage()));
         } catch (Exception e) {

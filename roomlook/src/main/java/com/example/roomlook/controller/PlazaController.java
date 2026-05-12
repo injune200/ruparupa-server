@@ -16,30 +16,31 @@ public class PlazaController {
 
     // 1. 랜덤 광장 입장
     @PostMapping("/random/join")
-    public ResponseEntity<Map<String, Object>> joinRandom(@RequestBody Map<String, Object> request) {
-        Long userId = Long.valueOf(request.get("userId").toString());
-        String nickname = request.get("nickname").toString();
-
-        // 랜덤 입장이므로 코드는 빈 값으로 전달
-        return ResponseEntity.ok(plazaService.joinPlaza(userId, nickname, ""));
+    public ResponseEntity<Map<String, Object>> joinRandom(
+            @RequestAttribute("currentUid") String currentUid) { 
+        
+        
+        return ResponseEntity.ok(plazaService.joinPlaza(currentUid, "")); 
     }
 
     // 2. 코드 광장 입장
     @PostMapping("/code/join")
-    public ResponseEntity<Map<String, Object>> joinByCode(@RequestBody Map<String, Object> request) {
-        Long userId = Long.valueOf(request.get("userId").toString());
-        String nickname = request.get("nickname").toString();
-        String code = request.get("code").toString(); // Body에 담긴 code 추출
+    public ResponseEntity<Map<String, Object>> joinByCode(
+            @RequestAttribute("currentUid") String currentUid,   
+            @RequestBody Map<String, Object> request) {
+        
+        String code = request.get("code").toString(); // Body에서는 입장할 방의 code만 추출!
 
-        return ResponseEntity.ok(plazaService.joinPlaza(userId, nickname, code));
+        return ResponseEntity.ok(plazaService.joinPlaza(currentUid, code));
     }
 
     // 3. 현재 광장 조회
     @GetMapping("/me/active")
-    public ResponseEntity<Map<String, Object>> getMyActivePlaza(@RequestParam Long userId) {
+    public ResponseEntity<Map<String, Object>> getMyActivePlaza(
+            @RequestAttribute("currentUid") String currentUid) { 
 
         try {
-            return ResponseEntity.ok(plazaService.getCurrentPlaza(userId));
+            return ResponseEntity.ok(plazaService.getCurrentPlaza(currentUid));
         } catch (Exception e) {
             return ResponseEntity.ok(Map.of("plaza", null));
         }

@@ -1,5 +1,7 @@
 package com.example.roomlook.service;
 
+import com.example.demo.User; 
+import com.example.demo.UserRepository; 
 import com.example.roomlook.dto.*;
 import com.example.roomlook.entity.*;
 import com.example.roomlook.repository.*;
@@ -19,9 +21,17 @@ public class PlazaService {
     @Autowired private PlazaRepository plazaRepository;
     @Autowired private PlazaParticipantRepository participantRepository;
     @Autowired private PetRepository petRepository;
+    @Autowired private UserRepository userRepository; 
 
     @Transactional
-    public Map<String, Object> joinPlaza(Long userId, String nickname, String inputCode) {
+    public Map<String, Object> joinPlaza(String currentUid, String inputCode) { 
+        
+        // 1. UID로 유저 정보 조회하여 기존 로직에 필요한 데이터 추출
+        User user = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다."));
+        Long userId = user.getId();
+        String nickname = user.getNickname();
+
         String normalizedCode = inputCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
         if (normalizedCode.startsWith("PZ") && normalizedCode.length() > 2) {
             normalizedCode = normalizedCode.substring(2);
@@ -58,7 +68,7 @@ public class PlazaService {
         participant.setNickname(nickname);
         participant.setPetId(pet.getId());
         participant.setJoinedAtMillis(System.currentTimeMillis());
-        //  좌표 Clamp 범위 내 초기화
+        // 좌표 Clamp 범위 내 초기화
         participant.setPositionX(0.42f);
         participant.setPositionY(0.68f);
         participant.setLastUpdatedAtMillis(System.currentTimeMillis());
@@ -71,7 +81,13 @@ public class PlazaService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> getCurrentPlaza(Long userId) {
+    public Map<String, Object> getCurrentPlaza(String currentUid) { 
+        
+        // 1. UID로 유저 정보 조회
+        User user = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다."));
+        Long userId = user.getId();
+
         Map<String, Object> result = new HashMap<>();
         participantRepository.findByUserId(userId).ifPresentOrElse(
                 p -> result.put("plaza", getPlazaSnapshot(p.getPlaza().getPlazaId(), userId)),

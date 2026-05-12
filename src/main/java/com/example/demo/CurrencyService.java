@@ -13,15 +13,15 @@ public class CurrencyService {
     }
 
     // 현재 잔액 조회 메서드 추가 (실패 응답용)
-    public Long getCurrentGold(String nickname) {
-        return userRepository.findByNickname(nickname)
+    public Long getCurrentGold(String currentUid) { 
+        return userRepository.findByUid(currentUid)
                 .map(User::getGold)
                 .orElse(0L);
     }
 
     @Transactional
-    public Long gainGoldWithVerification(String nickname, int amount, Long clientTotal) {
-        User user = userRepository.findByNickname(nickname)
+    public Long gainGoldWithVerification(String currentUid, int amount, Long clientTotal) { 
+        User user = userRepository.findByUid(currentUid) // findByNickname -> findByUid
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
         Long serverCalculatedTotal = user.getGold() + amount;

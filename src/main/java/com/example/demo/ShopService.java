@@ -27,9 +27,9 @@ public class ShopService {
      * 상점 구매 및 인벤토리 동기화 로직
      */
     @Transactional
-    public PurchaseResponse purchaseItem(String nickname, PurchaseRequest request) {
+    public PurchaseResponse purchaseItem(String currentUid, PurchaseRequest request) { 
         // 1. 유저 확인
-        User user = userRepository.findByNickname(nickname)
+        User user = userRepository.findByUid(currentUid) 
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
         
         // 2. 아이템 정보 확인

@@ -39,11 +39,11 @@ public class Pet {
 
     @Builder.Default
     @Column(nullable = false)
-    private int hunger = 100;
+    private int satiety = 100;
 
     @Builder.Default
     @Column(nullable = false)
-    private int stamina = 100; 
+    private int vitality = 100; 
 
     @Builder.Default
     @Column(nullable = false)

@@ -49,18 +49,18 @@ public class UserHeartbeatService {
                         int staminaDecrease = (int) (ticks * 1);
 
                         // 4. 수치 감소 (0 미만으로 떨어지지 않게 처리)
-                        pet.setHunger(Math.max(pet.getHunger() - hungerDecrease, 0));
+                        pet.setSatiety(Math.max(pet.getSatiety() - hungerDecrease, 0));
                         
-                        // 자고 있는 상태가 아니라면 스태미나도 감소 (자연 감소)
+                        // 자고 있는 상태가 아니라면 비타민도 감소 (자연 감소)
                         if (!pet.isSleep()) {
-                            pet.setStamina(Math.max(pet.getStamina() - staminaDecrease, 0));
+                            pet.setVitality(Math.max(pet.getVitality() - staminaDecrease, 0));
                         } else {
-                            // 만약 자고 있었다면? 기존처럼 스태미나 회복 로직 유지
+                            // 만약 자고 있었다면? 기존처럼 비타민 회복 로직 유지
                             int staminaIncrease = (int) (ticks * 2); // 예: 잠잘 땐 10초당 2씩 회복
-                            pet.setStamina(Math.min(pet.getStamina() + staminaIncrease, 100));
+                            pet.setVitality(Math.min(pet.getVitality() + staminaIncrease, 100));
                             
-                            // 스태미나가 100이 되면 잠에서 깸 (IDLE 상태를 isSleep = false 로 표현)
-                            if (pet.getStamina() >= 100) {
+                            // 비타민이 100이 되면 잠에서 깸 (IDLE 상태를 isSleep = false 로 표현)
+                            if (pet.getVitality() >= 100) {
                                 pet.setSleep(false);
                             }
                         }

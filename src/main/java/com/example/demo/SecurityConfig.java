@@ -36,7 +36,7 @@ public class SecurityConfig {
                 .requestMatchers("/currency/earn", "/shop/**").permitAll() 
                 .requestMatchers("/user/heartbeat", "/user/status", "/users/**").permitAll()
                 .requestMatchers("/friends", "/friends/**").permitAll()
-                .requestMatchers("/room/**", "/api/pets/**").permitAll()
+                .requestMatchers("/room/**", "/rooms/**","/api/pets/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

@@ -6,6 +6,6 @@ import java.util.List;
 
 public interface RoomFurnitureRepository extends JpaRepository<RoomFurniture, Long> {
     
-    // 특정 방(roomId)에 배치된 가구들만 리스트로 찾아오기
-    List<RoomFurniture> findByRoomId(Long roomId);
+
+    List<RoomFurniture> findByRoomId(String roomId);
 }

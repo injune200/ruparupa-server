@@ -23,6 +23,7 @@ public class RoomController {
     private final PetRepository petRepository;
     private final RoomRepository roomRepository;
     private final RoomFurnitureRepository roomFurnitureRepository;
+    // 여기가 사실상 로그인시 정보 가져오는 api, 로그인 후 방 정보와 펫 정보를 가져오는 역할.
 
     @GetMapping("/room")
     public RoomResponseDto getRoomInfo(
@@ -62,7 +63,7 @@ public class RoomController {
                 .name(pet.getName())
                 .hunger(pet.getHunger())
                 .stamina(pet.getStamina()) 
-                .currentAction(pet.getCurrentAction())
+                .isSleep(pet.isSleep())
                 .build();
 
         RoomResponseDto.RoomDto roomDto = RoomResponseDto.RoomDto.builder()

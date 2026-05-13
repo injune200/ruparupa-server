@@ -52,13 +52,17 @@ public class UserHeartbeatService {
                         pet.setHunger(Math.max(pet.getHunger() - hungerDecrease, 0));
                         
                         // 자고 있는 상태가 아니라면 스태미나도 감소 (자연 감소)
-                        if (!"SLEEPING".equals(pet.getCurrentAction())) {
+                        if (!pet.isSleep()) {
                             pet.setStamina(Math.max(pet.getStamina() - staminaDecrease, 0));
                         } else {
-                            // 만약 자고 있었다면? 기존처럼 스태미나 회복 로직을 유지하거나 기획에 맞춰 조정 가능
+                            // 만약 자고 있었다면? 기존처럼 스태미나 회복 로직 유지
                             int staminaIncrease = (int) (ticks * 2); // 예: 잠잘 땐 10초당 2씩 회복
                             pet.setStamina(Math.min(pet.getStamina() + staminaIncrease, 100));
-                            if (pet.getStamina() >= 100) pet.setCurrentAction("IDLE");
+                            
+                            // 스태미나가 100이 되면 잠에서 깸 (IDLE 상태를 isSleep = false 로 표현)
+                            if (pet.getStamina() >= 100) {
+                                pet.setSleep(false);
+                            }
                         }
                         
                         petRepository.save(pet);

@@ -18,7 +18,7 @@ public class RoomResponseDto {
         private String name;
         private int hunger;
         private int stamina; // ⭐ 기존 energy에서 stamina로 수정됨!
-        private String currentAction;
+        private boolean isSleep;
     }
 
     @Getter

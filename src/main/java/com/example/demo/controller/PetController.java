@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.MyPetResponseDto;
 import com.example.demo.entity.Pet;
 import com.example.demo.service.PetService;
 import lombok.RequiredArgsConstructor;
@@ -35,5 +36,12 @@ public class PetController {
             @RequestAttribute("currentUid") String currentUid,
             @PathVariable(name = "petId") Long petId) {
         return ResponseEntity.ok(petService.playWithPet(currentUid, petId));
+    }
+
+    // 내 펫 정보 조회 (없으면 생성)
+    @GetMapping("/me")
+    public ResponseEntity<MyPetResponseDto> getMyPet(
+            @RequestAttribute("currentUid") String currentUid) {
+        return ResponseEntity.ok(petService.getOrCreatePet(currentUid));
     }
 }

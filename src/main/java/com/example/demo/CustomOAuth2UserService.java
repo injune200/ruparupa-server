@@ -47,8 +47,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         User newUser = new User(nickname, kakaoId);
                         userRepository.save(newUser);
 
-                        // 2. 초기 펫 및 방 데이터 자동 생성
-                        petService.createInitialSetup(newUser);
+                        // 2. 초기 펫 및 방 데이터 자동 생성 (여기가 수정되었습니다!)
+                        petService.createInitialSetupAndReturnPet(newUser);
 
                         return newUser;
                     });

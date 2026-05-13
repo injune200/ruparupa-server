@@ -32,11 +32,15 @@ public class CurrencyController {
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
+            Long currentGold = currencyService.getCurrentGold(currentUid);
             response.put("status", "fail");
+            response.put("total", currentGold); // 실패 시 현재 서버 잔액 반환
             response.put("message", e.getMessage());
             return ResponseEntity.status(400).body(response);
         } catch (Exception e) {
+            Long currentGold = currencyService.getCurrentGold(currentUid);
             response.put("status", "fail");
+            response.put("total", currentGold);
             return ResponseEntity.status(403).body(response);
         }
     }

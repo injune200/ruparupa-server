@@ -16,9 +16,9 @@ public class RoomResponseDto {
     @Builder
     public static class PetDto {
         private String name;
-        private int hunger;
-        private int stamina; // ⭐ 기존 energy에서 stamina로 수정됨!
-        private String currentAction;
+        private int satiety;
+        private int vitality; // ⭐ 기존 energy에서 vitality로 수정됨!
+        private boolean isSleep;
     }
 
     @Getter

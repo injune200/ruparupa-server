@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import java.time.LocalDateTime;
-import java.util.UUID; // 추가
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -22,10 +22,13 @@ public class User {
 
     @Column(unique = true)
     private Long kakaoId;
-    
-    // 프론트와 통신할 때 사용할 안전한 식별자 uid
+
     @Column(unique = true, nullable = false)
-    private String uid; 
+    private String uid;
+
+    // 친구 추가용 고유 코드 (예: LUPA5B0RI)
+    @Column(unique = true)
+    private String friendCode;
 
     @Column(nullable = false)
     private Long gold = 0L;
@@ -37,8 +40,12 @@ public class User {
         this.nickname = nickname;
         this.kakaoId = kakaoId;
         this.gold = 0L;
-        // 생성 시 "user_a1b2c3d4" 형태로 자동 발급
-        this.uid = "user_" + UUID.randomUUID().toString().substring(0, 8); 
+        this.uid = "user_" + UUID.randomUUID().toString().substring(0, 8);
+        
+        // LUPA + 랜덤 문자 5자리로 친구 코드 자동 생성
+        String randomStr = UUID.randomUUID().toString().substring(0, 5).toUpperCase();
+        this.friendCode = "LUPA" + randomStr; 
+        
         this.lastHeartbeatAt = LocalDateTime.now();
     }
 

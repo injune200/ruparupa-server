@@ -15,13 +15,16 @@ public class UserHeartbeatController {
 
     @PostMapping("/heartbeat")
     public ResponseEntity<UserHeartbeatDto.HeartbeatResponse> heartbeat(
-            @RequestBody UserHeartbeatDto.Request request) {
-        return ResponseEntity.ok(heartbeatService.processHeartbeat(request.getUserId()));
+            @RequestAttribute("currentUid") String currentUid, // ⭐ 토큰에서 뽑은 진짜 UID
+            @RequestBody(required = false) UserHeartbeatDto.Request request) { 
+        
+        return ResponseEntity.ok(heartbeatService.processHeartbeat(currentUid));
     }
 
     @GetMapping("/status")
     public ResponseEntity<UserHeartbeatDto.StatusResponse> getStatus(
-            @RequestParam("userId") String userId) {
-        return ResponseEntity.ok(heartbeatService.getUserStatus(userId));
+            @RequestAttribute("currentUid") String currentUid) { 
+            
+        return ResponseEntity.ok(heartbeatService.getUserStatus(currentUid));
     }
 }

@@ -1,25 +1,49 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.persistence.Table;
+import lombok.*;
+import org.hibernate.annotations.UpdateTimestamp;
+import java.time.LocalDateTime;
+import java.util.Random;
 
 @Entity
-@Getter
-@Setter
+@Table(name = "rooms")
+@Getter @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Room {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String roomId; // PK: uid-랜덤숫자 10자리
 
-    private Long petId; 
+    private String ownerUserId; // 방 주인 uID
 
-    private String wallType = "default_wall";  
-    private String floorTileType = "default_tile";
+    @Builder.Default
+    private String sceneId = "main_room";
+
+    @Builder.Default
+    private int layoutRevision = 0;
+
+    @Builder.Default
+    private String wallAssetKey = "room/walls/main_wall";
+
+    @Builder.Default
+    private String floorAssetKey = "room/floors/main_floor";
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    // Room ID 생성 헬퍼 메서드
+    public void generateRoomId(String userUid) {
+        StringBuilder sb = new StringBuilder(userUid);
+        sb.append("-");
+        Random random = new Random();
+        for (int i = 0; i < 10; i++) {
+            sb.append(random.nextInt(10));
+        }
+        this.roomId = sb.toString();
+    }
 }

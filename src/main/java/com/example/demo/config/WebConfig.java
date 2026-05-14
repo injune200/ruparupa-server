@@ -1,18 +1,27 @@
 package com.example.demo.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
+@RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
 
+    private final UserInterceptor userInterceptor;
+
     @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**") // 우리 서버의 모든 API 주소에 대하여
-                .allowedOrigins("http://localhost:3000", "http://localhost:5173") // 프론트엔드 주소 허용 (프론트 팀원의 포트번호에 맞게 추가/수정)
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 허용할 요청 방식
-                .allowedHeaders("*")
-                .allowCredentials(true);
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(userInterceptor)
+                // 1. 기본적으로 모든 API 경로에 문지기를 세웁니다.
+                .addPathPatterns("/**") 
+                // 2. 단, 카카오 로그인이나 에러 페이지 등은 토큰 검사를 하면 안 되므로 예외 처리합니다.
+                .excludePathPatterns(
+                        "/oauth2/**",
+                        "/login/**",
+                        "/error",
+                        "/favicon.ico"
+                );
     }
 }

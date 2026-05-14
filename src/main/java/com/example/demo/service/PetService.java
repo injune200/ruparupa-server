@@ -1,95 +1,172 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.InitialPetResponseDto;
+import com.example.demo.User;
+import com.example.demo.UserRepository;
 import com.example.demo.entity.Pet;
 import com.example.demo.entity.Room;
+import com.example.demo.entity.RoomFurniture;
 import com.example.demo.repository.PetRepository;
+import com.example.demo.repository.RoomFurnitureRepository;
 import com.example.demo.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.demo.dto.MyPetResponseDto;
 
+import java.util.List;
 import java.util.Random;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
 public class PetService {
 
     private final PetRepository petRepository;
+    private final UserRepository userRepository;
     private final RoomRepository roomRepository;
-    private final Random random = new Random();
+    private final RoomFurnitureRepository roomFurnitureRepository;
 
-    // 0. 최초 로그인 시 펫 & 방 동시 생성 (InitialPetResponseDto 반환으로 변경)
     @Transactional
-    public InitialPetResponseDto createInitialPet(String uid, String name) {
-        Pet pet = new Pet();
-        pet.setUid(uid);
-        pet.setName(name);
+    public MyPetResponseDto getOrCreatePet(String currentUid) {
+        User user = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다."));
 
-        // 외형 랜덤 구현
-        pet.setHeadSize(random.nextInt(5) + 1);
-        pet.setBodySize(random.nextInt(5) + 1);
-        pet.setEyeDesign(random.nextInt(5) + 1);
-        pet.setNoseDesign(random.nextInt(5) + 1);
-        pet.setMouthDesign(random.nextInt(5) + 1);
+        Pet pet = petRepository.findByUserId(user.getId())
+                .orElseGet(() -> createInitialSetupAndReturnPet(user));
 
-        // 성격 랜덤 지정
-        String[] personalities = {"활발", "차분", "게으름"};
-        pet.setPersonality(personalities[random.nextInt(personalities.length)]);
+        return convertToDto(pet);
+    }
 
-        // 기본 스탯 및 속성 부여
-        pet.setHunger(100);
-        pet.setEnergy(100);
-        pet.setCleanliness(100);
-        pet.setHappiness(100);
-        pet.setEgg(true);
-        pet.setDecoration("None");
-        pet.setCurrentAction("IDLE");
+    private MyPetResponseDto convertToDto(Pet pet) {
+        return MyPetResponseDto.builder()
+                .petId(pet.getPetUid())
+                .ownerUserId(pet.getUser().getUid())
+                .name(pet.getName())
+                .characterAssetKey(pet.getCharacterAssetKey())
+                .personality(pet.getPersonality())
+                .equippedItemIds(pet.getEquippedItemIds()) // 리스트 그대로 반환
+                .updatedAt(pet.getUpdatedAt())
+                .status(MyPetResponseDto.StatusDto.builder()
+                        .satiety(pet.getSatiety())
+                        .vitality(pet.getVitality())
+                        .isEgg(pet.isEgg())
+                        .isSleep(pet.isSleep()) // 필드 직접 매핑
+                        .build())
+                .build();
+    }
 
-        // 펫 저장
-        Pet savedPet = petRepository.save(pet);
+    @Transactional
+    public Pet createInitialSetupAndReturnPet(User user) {
+        String[] personalities = {"ACTIVE", "CALM", "LAZY"};
+        String randomPersonality = personalities[new Random().nextInt(personalities.length)];
 
-        // 방 생성 및 저장 
-        Room room = new Room();
-        room.setPetId(savedPet.getId());
-        room.setWallType("default_wall");       // 벽지
-        room.setFloorTileType("default_tile");  // 기본 타일
+        Pet initialPet = Pet.builder()
+                .user(user)
+                .name("루파")
+                .characterAssetKey("room/characters/lupa_default")
+                .personality(randomPersonality)
+                .satiety(100)
+                .vitality(100)
+                .isEgg(true)
+                .isSleep(false) // 초기값 설정
+                .equippedItemIds(Collections.emptyList()) // 초기 아이템 없음
+                .build();
+                
+        initialPet.generatePetUid(user.getUid());
+        Pet savedPet = petRepository.save(initialPet);
+
+        // 방 데이터 생성 (새로운 규격 적용)
+        Room room = Room.builder()
+                .ownerUserId(user.getUid())
+                .sceneId("main_room")
+                .layoutRevision(0)
+                .wallAssetKey("room/walls/main_wall")
+                .floorAssetKey("room/floors/main_floor")
+                .build();
+        room.generateRoomId(user.getUid());
         Room savedRoom = roomRepository.save(room);
 
-        // 펫과 방 정보를 한 번에 반환
-        return new InitialPetResponseDto(savedPet, savedRoom);
+        // 가구 세팅 시 savedRoom.getRoomId() (String) 사용
+        RoomFurniture bed = new RoomFurniture();
+        bed.setRoomId(savedRoom.getRoomId());
+        bed.setType("bed");
+        bed.setX(2); bed.setY(3); bed.setDirection(0);
+
+        RoomFurniture toyBox = new RoomFurniture();
+        toyBox.setRoomId(savedRoom.getRoomId());
+        toyBox.setType("toy_box");
+        toyBox.setX(5); toyBox.setY(3); toyBox.setDirection(0);
+
+        RoomFurniture feedBag = new RoomFurniture();
+        feedBag.setRoomId(savedRoom.getRoomId());
+        feedBag.setType("feed_bag");
+        feedBag.setX(8); feedBag.setY(3); feedBag.setDirection(0);
+
+        roomFurnitureRepository.saveAll(List.of(bed, toyBox, feedBag));
+        
+        return savedPet;
     }
 
-    // 1. 밥 먹이기
+    // 1. 밥 먹이기 (사료 봉투 상호작용)
     @Transactional
-    public Pet feedPet(Long petId) {
-        Pet pet = petRepository.findById(petId)
-                .orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+    public Pet feedPet(String currentUid, Long petId) {
+        Pet pet = petRepository.findById(petId).orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+        
+        // 소유권 검증 로직
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 펫만 조작할 수 있습니다.");
+        }
 
-        pet.setHunger(Math.min(pet.getHunger() + 30, 100));
-        pet.setCurrentAction("EATING");
-        return pet;
+        // 상태 검증
+        if (pet.isSleep()) throw new IllegalStateException("펫이 자고 있습니다.");
+
+        if (pet.getSatiety() >= 100) {
+            throw new IllegalStateException("펫이 이미 배가 부릅니다.");
+        }
+
+        pet.setSatiety(Math.min(pet.getSatiety() + 30, 100));
+        return petRepository.save(pet);
     }
 
-    // 2. 잠재우기
+    // 2. 잠재우기 (침대 상호작용)
     @Transactional
-    public Pet sleepPet(Long petId) {
-        Pet pet = petRepository.findById(petId)
-                .orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+    public Pet sleepPet(String currentUid, Long petId) {
+        Pet pet = petRepository.findById(petId).orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+        
+        // 소유권 검증 로직
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 펫만 조작할 수 있습니다.");
+        }
 
-        pet.setEnergy(Math.min(pet.getEnergy() + 30, 100));
-        pet.setCurrentAction("SLEEPING");
-        return pet;
+        // 상태 검증
+        if (pet.isSleep()) {
+            throw new IllegalStateException("펫이 이미 자고 있습니다.");
+        }
+
+        pet.setVitality(Math.min(pet.getVitality() + 30, 100));
+        return petRepository.save(pet);
     }
 
-    // 3. 놀아주기
+    // 3. 놀아주기 (장난감 박스 상호작용)
     @Transactional
-    public Pet playWithPet(Long petId) {
-        Pet pet = petRepository.findById(petId)
-                .orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+    public Pet playWithPet(String currentUid, Long petId) {
+        Pet pet = petRepository.findById(petId).orElseThrow(() -> new IllegalArgumentException("펫이 존재하지 않습니다."));
+        
+        // 소유권 검증 로직
+        if (!pet.getUser().getUid().equals(currentUid)) {
+            throw new IllegalArgumentException("본인의 펫만 조작할 수 있습니다.");
+        }
 
-        pet.setEnergy(Math.max(pet.getEnergy() - 20, 0));
-        pet.setCurrentAction("PLAYING");
-        return pet;
+        // 상태 검증
+        if (pet.isSleep()) {
+            throw new IllegalStateException("펫이 자고 있어서 놀 수 없습니다.");
+        }
+        if (pet.getVitality() < 20) {
+            throw new IllegalStateException("비타민이 부족하여 놀 수 없습니다.");
+        }
+
+        pet.setVitality(Math.max(pet.getVitality() - 20, 0));
+        pet.setSatiety(Math.max(pet.getSatiety() - 10, 0));
+        return petRepository.save(pet);
     }
 }

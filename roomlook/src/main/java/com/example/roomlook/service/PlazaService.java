@@ -8,8 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -20,11 +19,14 @@ public class PlazaService {
     @Autowired private PlazaParticipantRepository participantRepository;
     @Autowired private PetRepository petRepository;
 
+    /**
+     * 1 & 2. 광장 입장 (랜덤/코드 통합)
+     */
     @Transactional
-    public Map<String, Object> joinPlaza(Long userId, String nickname, String inputCode) {
-        String normalizedCode = inputCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
-        if (normalizedCode.startsWith("PZ") && normalizedCode.length() > 2) {
-            normalizedCode = normalizedCode.substring(2);
+    public PlazaRoomResponse joinPlaza(Long userId, String nickname, String inputCode) {
+        String normalizedCode = (inputCode == null) ? "" : inputCode.replace("-", "").toUpperCase();
+        if (!normalizedCode.isEmpty() && !normalizedCode.startsWith("PZ")) {
+            normalizedCode = "PZ" + normalizedCode;
         }
 
         Plaza targetPlaza;
@@ -34,8 +36,10 @@ public class PlazaService {
                     .findFirst()
                     .orElseGet(this::createNewPlaza);
         } else {
-            targetPlaza = plazaRepository.findByPlazaCode(normalizedCode)
+            String pureCode = normalizedCode.substring(2);
+            targetPlaza = plazaRepository.findByPlazaCode(pureCode)
                     .orElseThrow(() -> new RuntimeException("PLAZA_NOT_FOUND"));
+
             if (participantRepository.countByPlaza(targetPlaza) >= 4) {
                 throw new RuntimeException("PLAZA_FULL");
             }
@@ -58,74 +62,116 @@ public class PlazaService {
         participant.setNickname(nickname);
         participant.setPetId(pet.getId());
         participant.setJoinedAtMillis(System.currentTimeMillis());
-        //  좌표 Clamp 범위 내 초기화
-        participant.setPositionX(0.42f);
-        participant.setPositionY(0.68f);
+        participant.setPositionX(0.5f);
+        participant.setPositionY(0.5f);
         participant.setLastUpdatedAtMillis(System.currentTimeMillis());
         participantRepository.save(participant);
 
         targetPlaza.setRoomRevision(targetPlaza.getRoomRevision() + 1);
-        Map<String, Object> result = new HashMap<>();
-        result.put("plaza", getPlazaSnapshot(targetPlaza.getPlazaId(), userId));
-        return result;
+
+        return getPlazaSnapshot(targetPlaza.getPlazaId(), userId);
     }
 
+    /**
+     * 3. [추가됨] 현재 사용자의 활성 광장 조회 (MVP)
+     * 이 메서드가 없어서 컨트롤러에서 오류가 났던 것입니다.
+     */
     @Transactional(readOnly = true)
-    public Map<String, Object> getCurrentPlaza(Long userId) {
-        Map<String, Object> result = new HashMap<>();
-        participantRepository.findByUserId(userId).ifPresentOrElse(
-                p -> result.put("plaza", getPlazaSnapshot(p.getPlaza().getPlazaId(), userId)),
-                () -> result.put("plaza", null)
-        );
-        return result;
+    public PlazaRoomResponse getCurrentPlazaMvp(Long userId) {
+        return participantRepository.findByUserId(userId)
+                .map(p -> getPlazaSnapshot(p.getPlaza().getPlazaId(), userId))
+                .orElse(null); // 참여 중인 광장이 없으면 null 반환
     }
 
-    @Transactional
+    /**
+     * 4. 광장 스냅샷 조회 (Polling용)
+     */
+    @Transactional(readOnly = true)
     public PlazaRoomResponse getPlazaSnapshot(String plazaId, Long currentUserId) {
         Plaza plaza = plazaRepository.findByPlazaId(plazaId)
                 .orElseThrow(() -> new RuntimeException("PLAZA_NOT_FOUND"));
 
-        long now = System.currentTimeMillis();
+        boolean isParticipant = plaza.getParticipants().stream()
+                .anyMatch(p -> p.getUserId().equals(currentUserId));
+        if (!isParticipant) {
+            throw new RuntimeException("NOT_IN_PLAZA");
+        }
 
-        plaza.getParticipants().forEach(p -> {
-            if (p.getTargetX() != null && p.getMoveStartedAtMillis() != null) {
-                if (now >= p.getMoveStartedAtMillis() + p.getMoveDurationMillis()) {
-                    p.setPositionX(p.getTargetX());
-                    p.setPositionY(p.getTargetY());
-                    p.setTargetX(null);
-                    p.setTargetY(null);
-                    p.setLastUpdatedAtMillis(now);
-                }
-            }
-        });
+        PlazaRoomResponse.PlazaDetail detail = new PlazaRoomResponse.PlazaDetail();
+        detail.setPlazaId(plaza.getPlazaId());
+        detail.setPlazaCode("PZ" + plaza.getPlazaCode());
+        detail.setDisplayPlazaCode("PZ-" + plaza.getPlazaCode());
+        detail.setMaxParticipants(4);
+        detail.setRoomRevision(plaza.getRoomRevision());
 
-        PlazaRoomResponse response = new PlazaRoomResponse();
-        response.setPlazaId(plaza.getPlazaId());
-        response.setPlazaCode("PZ" + plaza.getPlazaCode());
-        response.setDisplayPlazaCode("PZ-" + plaza.getPlazaCode());
-
-        response.setParticipants(plaza.getParticipants().stream().map(p -> {
-            PlazaParticipantResponse pr = new PlazaParticipantResponse();
-            pr.setUserId(p.getUserId().toString());
-            pr.setNickname(p.getNickname());
-            Pet pet = petRepository.findById(p.getPetId()).get();
-            pr.setPet(convertToPetSnapshot(pet));
-            pr.setJoinedAtMillis(p.getJoinedAtMillis());
-            pr.setPosition(new PlazaPosition(p.getPositionX(), p.getPositionY()));
-            pr.setMovement(null);
-            pr.setPositionUpdatedAtMillis(p.getLastUpdatedAtMillis());
-            return pr;
+        detail.setParticipants(plaza.getParticipants().stream().map(p -> {
+            Pet pet = petRepository.findById(p.getPetId()).orElse(null);
+            return PlazaParticipantResponse.builder()
+                    .userId(p.getUserId().toString())
+                    .nickname(p.getNickname())
+                    .profileImageUrl("")
+                    .pet(PlazaParticipantResponse.PlazaPetSnapshotResponse.builder()
+                            .characterAssetKey(pet != null ? pet.getCharacterAssetKey() : "UNKNOWN")
+                            .appearance(1.0)
+                            .build())
+                    .position(PlazaParticipantResponse.PlazaPositionResponse.builder()
+                            .x(p.getPositionX())
+                            .y(p.getPositionY())
+                            .build())
+                    .build();
         }).collect(Collectors.toList()));
 
-        response.setMessages(new ArrayList<>());
-        response.setInteractions(new ArrayList<>());
-        response.setMaxParticipants(4);
-        response.setRoomRevision(plaza.getRoomRevision());
-        response.setServerTime(Map.of("serverNowMillis", now));
-        response.setJoinedAtMillis(now);
-        response.setIsServerAuthoritative(true);
+        detail.setMessages(new ArrayList<>());
 
+        PlazaRoomResponse response = new PlazaRoomResponse();
+        response.setPlaza(detail);
         return response;
+    }
+
+    /**
+     * 5. 광장 퇴장
+     */
+    @Transactional
+    public void leavePlaza(String plazaId, Long userId) {
+        PlazaParticipant participant = participantRepository.findByUserId(userId)
+                .filter(p -> p.getPlaza().getPlazaId().equals(plazaId))
+                .orElseThrow(() -> new RuntimeException("NOT_IN_PLAZA"));
+
+        Plaza plaza = participant.getPlaza();
+        participantRepository.delete(participant);
+
+        if (participantRepository.countByPlaza(plaza) == 0) {
+            plazaRepository.delete(plaza);
+        } else {
+            plaza.setRoomRevision(plaza.getRoomRevision() + 1);
+        }
+    }
+
+    /**
+     * 6. 광장 채팅 전송
+     */
+    @Transactional
+    public PlazaChatMessageResponse sendPlazaMessage(String plazaId, Long userId, String text) {
+        PlazaParticipant participant = participantRepository.findByUserId(userId)
+                .filter(p -> p.getPlaza().getPlazaId().equals(plazaId))
+                .orElseThrow(() -> new RuntimeException("NOT_IN_PLAZA"));
+
+        if (text == null || text.trim().isEmpty()) {
+            throw new RuntimeException("EMPTY_MESSAGE");
+        }
+        if (text.length() > 120) {
+            throw new RuntimeException("MESSAGE_TOO_LONG");
+        }
+
+        participant.getPlaza().setRoomRevision(participant.getPlaza().getRoomRevision() + 1);
+
+        return PlazaChatMessageResponse.builder()
+                .id("msg_" + UUID.randomUUID().toString().substring(0, 8))
+                .senderUserId(userId.toString())
+                .senderNickname(participant.getNickname())
+                .text(text.trim())
+                .sentAtMillis(System.currentTimeMillis())
+                .build();
     }
 
     private Plaza createNewPlaza() {
@@ -135,30 +181,5 @@ public class PlazaService {
         plaza.setRoomRevision(1);
         plaza.setCreatedAtMillis(System.currentTimeMillis());
         return plazaRepository.save(plaza);
-    }
-
-    private PlazaPetSnapshot convertToPetSnapshot(Pet pet) {
-        PlazaPetSnapshot s = new PlazaPetSnapshot();
-        s.setPetId(pet.getId().toString());
-        s.setOwnerUserId(pet.getOwnerUserId().toString());
-        s.setName(pet.getName());
-        s.setCharacterAssetKey(pet.getCharacterAssetKey());
-
-        // 5가지 외형 배율 모두 포함
-        PetAppearance app = new PetAppearance();
-        app.setHeadSizeScale(pet.getHeadSizeScale());
-        app.setBodySizeScale(pet.getBodySizeScale());
-        app.setEyeSizeScale(1.0f);
-        app.setNoseSizeScale(1.0f);
-        app.setMouthSizeScale(1.0f);
-        s.setAppearance(app);
-
-        PetStatus st = new PetStatus();
-        st.setSatiety(100); st.setVitality(100); st.setIsEgg(false);
-        s.setStatus(st);
-
-        s.setPersonality("ACTIVE");
-        s.setEquippedItemIds(new ArrayList<>()); // 아이템 목록
-        return s;
     }
 }

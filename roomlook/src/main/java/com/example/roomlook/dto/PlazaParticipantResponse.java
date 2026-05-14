@@ -1,17 +1,37 @@
 package com.example.roomlook.dto;
 
-import com.example.roomlook.dto.PlazaMovementCommand;
-import com.example.roomlook.dto.PlazaPosition;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class PlazaParticipantResponse {
     private String userId;
     private String nickname;
-    private PlazaPetSnapshot pet;
-    private Long joinedAtMillis;
-    private PlazaPosition position;
-    private PlazaMovementCommand movement; // 이동 중이 아니면 null
-    private Long positionUpdatedAtMillis;
+    private String profileImageUrl;
+    private PlazaPetSnapshotResponse pet;
+    private PlazaPositionResponse position;
+
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlazaPetSnapshotResponse {
+        private String characterAssetKey; // 펫 종류
+        private double appearance;        // 펫 크기 배율
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlazaPositionResponse {
+        private double x; // 0.0 ~ 1.0 상대 좌표
+        private double y; // 0.0 ~ 1.0 상대 좌표
+    }
 }
-//참가자 응답

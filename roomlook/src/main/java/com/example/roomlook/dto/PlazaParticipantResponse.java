@@ -34,4 +34,4 @@ public class PlazaParticipantResponse {
         private double x; // 0.0 ~ 1.0 상대 좌표
         private double y; // 0.0 ~ 1.0 상대 좌표
     }
-}
+}//.

@@ -28,4 +28,4 @@ public class PlazaRoomResponse {
         private int maxParticipants;
         private int roomRevision;
     }
-}
+}//.

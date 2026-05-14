@@ -15,4 +15,4 @@ public class PlazaChatMessageResponse {
     private String senderNickname;  // 보낸 사용자 닉네임
     private String text;            // 메시지 내용
     private Long sentAtMillis;      // 메시지 전송 시각 (밀리초 단위)
-}
+}//.

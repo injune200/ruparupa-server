@@ -126,7 +126,7 @@ public class PlazaService {
         PlazaRoomResponse response = new PlazaRoomResponse();
         response.setPlaza(detail);
         return response;
-    }
+    }//.
 
     /**
      * 5. 광장 퇴장

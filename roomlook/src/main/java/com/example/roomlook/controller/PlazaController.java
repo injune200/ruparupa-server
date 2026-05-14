@@ -80,4 +80,4 @@ public class PlazaController {
         String text = request.get("text");
         return ResponseEntity.ok(plazaService.sendPlazaMessage(plazaId, userId, text));
     }
-}
+}//.

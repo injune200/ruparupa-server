@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.transaction.annotation.Transactional;
+import lombok.Getter;
+import lombok.Setter;
 @RestController
 @RequestMapping("/rooms") // 공통 경로 설정
 @RequiredArgsConstructor
@@ -66,6 +69,8 @@ public class RoomController {
                 .build();
 
         return ResponseEntity.ok(response);
+
+
     }
 
     /**
@@ -125,5 +130,54 @@ public class RoomController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+    @Getter
+    @Setter
+    public static class SaveFurnitureRequest {
+        private String furnitureId;
+        private String type;
+        private int x;
+        private int y;
+        private int width;
+        private int height;
+        private int direction;
+        private String status;
+    }
+
+    @Transactional
+    @PostMapping("/me/layout")
+    public ResponseEntity<String> saveMyRoomLayout(
+            @RequestAttribute("currentUid") String currentUid,
+            @RequestBody List<SaveFurnitureRequest> requestList) {
+
+        Room room = roomRepository.findByOwnerUserId(currentUid)
+                .orElseThrow(() -> new IllegalArgumentException("방 정보를 찾을 수 없습니다."));
+
+        roomFurnitureRepository.deleteByRoomId(room.getRoomId());
+
+        for (SaveFurnitureRequest request : requestList) {
+            RoomFurniture furniture = new RoomFurniture();
+
+            String furnitureType = request.getType();
+            if (furnitureType == null || furnitureType.isBlank()) {
+                furnitureType = request.getFurnitureId();
+            }
+
+            furniture.setRoomId(room.getRoomId());
+            furniture.setType(furnitureType);
+            furniture.setX(request.getX());
+            furniture.setY(request.getY());
+            furniture.setDirection(request.getDirection());
+            furniture.setStatus(
+                    request.getStatus() == null ? "placed" : request.getStatus()
+            );
+
+            roomFurnitureRepository.save(furniture);
+        }
+
+        room.setLayoutRevision(room.getLayoutRevision() + 1);
+        roomRepository.save(room);
+
+        return ResponseEntity.ok("방 배치 저장 완료");
     }
 }

@@ -8,16 +8,26 @@ import com.example.demo.entity.FriendRequest;
 import com.example.demo.entity.FriendRequestStatus;
 import com.example.demo.entity.Friendship;
 import com.example.demo.entity.FriendshipStatus;
+import com.example.demo.entity.HomeInvitation;
+import com.example.demo.entity.HomeInvitationStatus;
+import com.example.demo.entity.Pet;
+import com.example.demo.entity.Room;
+import com.example.demo.entity.RoomFurniture;
 import com.example.demo.exception.CustomApiException;
 import com.example.demo.exception.ErrorCode;
 import com.example.demo.repository.FriendMessageRepository;
 import com.example.demo.repository.FriendRequestRepository;
 import com.example.demo.repository.FriendshipRepository;
+import com.example.demo.repository.HomeInvitationRepository;
+import com.example.demo.repository.PetRepository;
+import com.example.demo.repository.RoomFurnitureRepository;
+import com.example.demo.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
  
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
  
@@ -29,6 +39,10 @@ public class FriendService {
     private final FriendRequestRepository requestRepository;
     private final FriendshipRepository friendshipRepository;
     private final FriendMessageRepository messageRepository;
+    private final HomeInvitationRepository homeInvitationRepository;
+    private final RoomRepository roomRepository;
+    private final RoomFurnitureRepository roomFurnitureRepository;
+    private final PetRepository petRepository;
  
     private static final int MAX_MESSAGE_LENGTH = 500;
  
@@ -76,6 +90,117 @@ public class FriendService {
                 .status(friendship.getStatus())
                 .friendsSince(friendship.getFriendsSince())
                 .build();
+    }
+
+    private FriendDto.FriendHomeInvitation convertToHomeInvitationDto(HomeInvitation invitation) {
+        return FriendDto.FriendHomeInvitation.builder()
+                .id("home_invitation_" + invitation.getId())
+                .fromUser(convertToUserDto(invitation.getFromUser()))
+                .toUser(convertToUserDto(invitation.getToUser()))
+                .status(invitation.getStatus())
+                .message(invitation.getMessage())
+                .createdAt(invitation.getCreatedAt())
+                .respondedAt(invitation.getRespondedAt())
+                .expiresAt(invitation.getExpiresAt())
+                .build();
+    }
+
+    private FriendDto.FriendPlacedItem convertToPlacedItemDto(RoomFurniture furniture) {
+        float anchorU = Math.max(0f, Math.min(1f, (furniture.getX() + 0.5f) / 10f));
+        float anchorV = Math.max(0f, Math.min(1f, (furniture.getY() + 0.5f) / 10f));
+
+        return FriendDto.FriendPlacedItem.builder()
+                .placedItemId("placed_" + furniture.getId())
+                .itemId(furniture.getType())
+                .objectType(furniture.getType())
+                .anchorType("FLOOR")
+                .anchor(FriendDto.FriendAnchor.builder()
+                        .u(anchorU)
+                        .v(anchorV)
+                        .build())
+                .tile(FriendDto.FriendTile.builder()
+                        .x(furniture.getX())
+                        .y(furniture.getY())
+                        .widthTiles(1)
+                        .depthTiles(1)
+                        .anchorMode("CENTER")
+                        .build())
+                .build();
+    }
+
+    private FriendDto.FriendPetSnapshot convertToPetSnapshotDto(Pet pet) {
+        List<String> equippedItemIds = pet.getEquippedItemIds() == null
+                ? Collections.emptyList()
+                : pet.getEquippedItemIds().stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.toList());
+
+        return FriendDto.FriendPetSnapshot.builder()
+                .petId(pet.getPetUid())
+                .ownerUserId(pet.getUser().getUid())
+                .name(pet.getName() == null || pet.getName().isBlank() ? "루파" : pet.getName())
+                .characterAssetKey(pet.getCharacterAssetKey() == null ? "room/characters/lupa_default" : pet.getCharacterAssetKey())
+                .appearance(FriendDto.FriendPetAppearanceSnapshot.builder()
+                        .headSizeScale(1f)
+                        .bodySizeScale(1f)
+                        .eyeSizeScale(1f)
+                        .noseSizeScale(1f)
+                        .mouthSizeScale(1f)
+                        .build())
+                .condition(FriendDto.FriendPetConditionSnapshot.builder()
+                        .satiety(pet.getSatiety())
+                        .vitality(pet.getVitality())
+                        .isEgg(pet.isEgg())
+                        .build())
+                .sceneState(FriendDto.FriendPetSceneStateSnapshot.builder()
+                        .action("IDLE")
+                        .anchor(FriendDto.FriendAnchor.builder()
+                                .u(0.44f)
+                                .v(0.64f)
+                                .build())
+                        .build())
+                .personality(pet.getPersonality() == null ? "ACTIVE" : pet.getPersonality())
+                .equippedItemIds(equippedItemIds)
+                .build();
+    }
+
+    private FriendDto.FriendHomeSnapshot buildHomeSnapshot(User owner, LocalDateTime now) {
+        Room room = roomRepository.findByOwnerUserId(owner.getUid())
+                .orElseThrow(() -> new CustomApiException(ErrorCode.FRIEND_HOME_UNAVAILABLE));
+
+        List<FriendDto.FriendPlacedItem> placedItems = roomFurnitureRepository.findByRoomId(room.getRoomId()).stream()
+                .map(this::convertToPlacedItemDto)
+                .collect(Collectors.toList());
+
+        FriendDto.FriendPetSnapshot petSnapshot = petRepository.findByUserId(owner.getId())
+                .map(this::convertToPetSnapshotDto)
+                .orElse(null);
+
+        return FriendDto.FriendHomeSnapshot.builder()
+                .owner(convertToUserDto(owner))
+                .room(FriendDto.FriendRoomSnapshot.builder()
+                        .sceneId(room.getSceneId())
+                        .wallAssetKey(room.getWallAssetKey())
+                        .floorAssetKey(room.getFloorAssetKey())
+                        .placedItems(placedItems)
+                        .layoutRevision(room.getLayoutRevision())
+                        .updatedAt(room.getUpdatedAt())
+                        .build())
+                .petSnapshot(petSnapshot)
+                .snapshotAt(now)
+                .visitedAt(now)
+                .build();
+    }
+
+    private boolean markExpiredIfNeeded(HomeInvitation invitation, LocalDateTime now) {
+        if (invitation.getStatus() == HomeInvitationStatus.PENDING
+                && invitation.getExpiresAt() != null
+                && invitation.getExpiresAt().isBefore(now)) {
+            invitation.setStatus(HomeInvitationStatus.EXPIRED);
+            invitation.setRespondedAt(now);
+            return true;
+        }
+        return false;
     }
  
     @Transactional(readOnly = true)
@@ -207,6 +332,150 @@ public class FriendService {
                 .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
         List<Friendship> friendships = friendshipRepository.findByUserAndStatus(me, FriendshipStatus.ACCEPTED);
         return new FriendDto.FriendListResponse(friendships.stream().map(this::convertToFriendSummary).collect(Collectors.toList()));
+    }
+
+    @Transactional
+    public FriendDto.SingleHomeInvitationResponse sendHomeInvitation(
+            String currentUid,
+            FriendDto.SendHomeInvitationRequest request
+    ) {
+        User sender = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
+
+        if (request == null) {
+            throw new CustomApiException(ErrorCode.FRIEND_NOT_FOUND);
+        }
+        String friendUserId = request.getFriendUserId();
+        if (friendUserId == null || friendUserId.isBlank()) {
+            throw new CustomApiException(ErrorCode.FRIEND_NOT_FOUND);
+        }
+
+        User receiver = userRepository.findByUid(friendUserId)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.FRIEND_NOT_FOUND));
+
+        if (sender.getUid().equals(receiver.getUid())) {
+            throw new CustomApiException(ErrorCode.SELF_CODE);
+        }
+        if (!friendshipRepository.existsByUserAndFriend(sender, receiver)) {
+            throw new CustomApiException(ErrorCode.NOT_FRIENDS);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        HomeInvitation existing = homeInvitationRepository
+                .findByFromUserAndToUserAndStatus(sender, receiver, HomeInvitationStatus.PENDING)
+                .orElse(null);
+        if (existing != null && !markExpiredIfNeeded(existing, now)) {
+            throw new CustomApiException(ErrorCode.HOME_INVITATION_ALREADY_SENT);
+        }
+
+        String message = request.getMessage();
+        HomeInvitation invitation = HomeInvitation.builder()
+                .fromUser(sender)
+                .toUser(receiver)
+                .message(message == null || message.isBlank() ? null : message.trim())
+                .status(HomeInvitationStatus.PENDING)
+                .createdAt(now)
+                .expiresAt(now.plusHours(24))
+                .build();
+
+        homeInvitationRepository.save(invitation);
+        return new FriendDto.SingleHomeInvitationResponse(convertToHomeInvitationDto(invitation));
+    }
+
+    @Transactional
+    public FriendDto.HomeInvitationListResponse getReceivedHomeInvitations(String currentUid) {
+        User me = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
+        LocalDateTime now = LocalDateTime.now();
+
+        List<FriendDto.FriendHomeInvitation> invitations = homeInvitationRepository
+                .findByToUserAndStatusOrderByCreatedAtDesc(me, HomeInvitationStatus.PENDING)
+                .stream()
+                .filter(invitation -> !markExpiredIfNeeded(invitation, now))
+                .map(this::convertToHomeInvitationDto)
+                .collect(Collectors.toList());
+
+        return new FriendDto.HomeInvitationListResponse(invitations);
+    }
+
+    @Transactional
+    public FriendDto.HomeInvitationListResponse getSentHomeInvitations(String currentUid) {
+        User me = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
+        LocalDateTime now = LocalDateTime.now();
+
+        List<FriendDto.FriendHomeInvitation> invitations = homeInvitationRepository
+                .findByFromUserAndStatusOrderByCreatedAtDesc(me, HomeInvitationStatus.PENDING)
+                .stream()
+                .filter(invitation -> !markExpiredIfNeeded(invitation, now))
+                .map(this::convertToHomeInvitationDto)
+                .collect(Collectors.toList());
+
+        return new FriendDto.HomeInvitationListResponse(invitations);
+    }
+
+    @Transactional
+    public FriendDto.AcceptHomeInvitationResponse acceptHomeInvitation(String currentUid, Long invitationId) {
+        HomeInvitation invitation = homeInvitationRepository.findById(invitationId)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.HOME_INVITATION_NOT_FOUND));
+
+        if (!invitation.getToUser().getUid().equals(currentUid)) {
+            throw new CustomApiException(ErrorCode.NOT_HOME_INVITATION_RECEIVER);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (invitation.getStatus() != HomeInvitationStatus.PENDING || markExpiredIfNeeded(invitation, now)) {
+            throw new CustomApiException(ErrorCode.HOME_INVITATION_NOT_PENDING);
+        }
+        if (!friendshipRepository.existsByUserAndFriend(invitation.getToUser(), invitation.getFromUser())) {
+            throw new CustomApiException(ErrorCode.NOT_FRIENDS);
+        }
+
+        invitation.setStatus(HomeInvitationStatus.ACCEPTED);
+        invitation.setRespondedAt(now);
+
+        return new FriendDto.AcceptHomeInvitationResponse(
+                convertToHomeInvitationDto(invitation),
+                buildHomeSnapshot(invitation.getFromUser(), now)
+        );
+    }
+
+    @Transactional
+    public FriendDto.SingleHomeInvitationResponse rejectHomeInvitation(String currentUid, Long invitationId) {
+        HomeInvitation invitation = homeInvitationRepository.findById(invitationId)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.HOME_INVITATION_NOT_FOUND));
+
+        if (!invitation.getToUser().getUid().equals(currentUid)) {
+            throw new CustomApiException(ErrorCode.NOT_HOME_INVITATION_RECEIVER);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (invitation.getStatus() != HomeInvitationStatus.PENDING || markExpiredIfNeeded(invitation, now)) {
+            throw new CustomApiException(ErrorCode.HOME_INVITATION_NOT_PENDING);
+        }
+
+        invitation.setStatus(HomeInvitationStatus.REJECTED);
+        invitation.setRespondedAt(now);
+        return new FriendDto.SingleHomeInvitationResponse(convertToHomeInvitationDto(invitation));
+    }
+
+    @Transactional
+    public FriendDto.SingleHomeInvitationResponse cancelHomeInvitation(String currentUid, Long invitationId) {
+        HomeInvitation invitation = homeInvitationRepository.findById(invitationId)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.HOME_INVITATION_NOT_FOUND));
+
+        if (!invitation.getFromUser().getUid().equals(currentUid)) {
+            throw new CustomApiException(ErrorCode.NOT_HOME_INVITATION_SENDER);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (invitation.getStatus() != HomeInvitationStatus.PENDING || markExpiredIfNeeded(invitation, now)) {
+            throw new CustomApiException(ErrorCode.HOME_INVITATION_NOT_PENDING);
+        }
+
+        invitation.setStatus(HomeInvitationStatus.CANCELED);
+        invitation.setRespondedAt(now);
+        return new FriendDto.SingleHomeInvitationResponse(convertToHomeInvitationDto(invitation));
     }
  
     @Transactional

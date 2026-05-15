@@ -2,6 +2,7 @@ package com.example.demo.dto;
 
 import com.example.demo.entity.FriendRequestStatus;
 import com.example.demo.entity.FriendshipStatus;
+import com.example.demo.entity.HomeInvitationStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -57,6 +58,97 @@ public class FriendDto {
         private LocalDateTime sentAt;
     }
 
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendHomeInvitation {
+        private String id;
+        private FriendUser fromUser;
+        private FriendUser toUser;
+        private HomeInvitationStatus status;
+        private String message;
+        private LocalDateTime createdAt;
+        private LocalDateTime respondedAt;
+        private LocalDateTime expiresAt;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendHomeSnapshot {
+        private FriendUser owner;
+        private FriendRoomSnapshot room;
+        private FriendPetSnapshot petSnapshot;
+        private LocalDateTime snapshotAt;
+        private LocalDateTime visitedAt;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendRoomSnapshot {
+        private String sceneId;
+        private String wallAssetKey;
+        private String floorAssetKey;
+        private List<FriendPlacedItem> placedItems;
+        private int layoutRevision;
+        private LocalDateTime updatedAt;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendPlacedItem {
+        private String placedItemId;
+        private String itemId;
+        private String objectType;
+        private String anchorType;
+        private FriendAnchor anchor;
+        private FriendTile tile;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendAnchor {
+        private float u;
+        private float v;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendTile {
+        private int x;
+        private int y;
+        private int widthTiles;
+        private int depthTiles;
+        private String anchorMode;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendPetSnapshot {
+        private String petId;
+        private String ownerUserId;
+        private String name;
+        private String characterAssetKey;
+        private FriendPetAppearanceSnapshot appearance;
+        private FriendPetConditionSnapshot condition;
+        private FriendPetSceneStateSnapshot sceneState;
+        private String personality;
+        private List<String> equippedItemIds;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendPetAppearanceSnapshot {
+        private float headSizeScale;
+        private float bodySizeScale;
+        private float eyeSizeScale;
+        private float noseSizeScale;
+        private float mouthSizeScale;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendPetConditionSnapshot {
+        private int satiety;
+        private int vitality;
+        private boolean isEgg;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendPetSceneStateSnapshot {
+        private String action;
+        private FriendAnchor anchor;
+    }
+
     // ==========================================
     // 3. API 요청 (Request) DTO
     // ==========================================
@@ -68,6 +160,12 @@ public class FriendDto {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class MessageRequest {
         private String text;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+    public static class SendHomeInvitationRequest {
+        private String friendUserId;
+        private String message;
     }
 
     // ==========================================
@@ -124,5 +222,21 @@ public class FriendDto {
     public static class FriendMessagesResponse {
         private List<FriendMessage> messages;
         private String nextCursor;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class SingleHomeInvitationResponse {
+        private FriendHomeInvitation invitation;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class HomeInvitationListResponse {
+        private List<FriendHomeInvitation> invitations;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class AcceptHomeInvitationResponse {
+        private FriendHomeInvitation invitation;
+        private FriendHomeSnapshot homeSnapshot;
     }
 }

@@ -23,6 +23,11 @@ public enum ErrorCode {
     REQUEST_NOT_PENDING(409, "이미 처리된 친구 요청입니다."),
  
     // 친구 집 방문
+    HOME_INVITATION_ALREADY_SENT(409, "이미 보낸 집 초대가 있습니다."),
+    HOME_INVITATION_NOT_FOUND(404, "집 초대를 찾을 수 없습니다."),
+    HOME_INVITATION_NOT_PENDING(409, "이미 처리되었거나 만료된 집 초대입니다."),
+    NOT_HOME_INVITATION_RECEIVER(403, "내가 받은 집 초대만 수락할 수 있습니다."),
+    NOT_HOME_INVITATION_SENDER(403, "내가 보낸 집 초대만 취소할 수 있습니다."),
     FRIEND_HOME_UNAVAILABLE(503, "친구 집 정보를 불러올 수 없습니다."),
  
     // 메시지

@@ -32,6 +32,14 @@ public class FriendController {
             throw new CustomApiException(ErrorCode.HOME_INVITATION_NOT_FOUND);
         }
     }
+
+    private Long parseHomeVisitId(String visitSessionId) {
+        try {
+            return Long.parseLong(visitSessionId.replace("home_visit_", ""));
+        } catch (NumberFormatException e) {
+            throw new CustomApiException(ErrorCode.HOME_VISIT_NOT_FOUND);
+        }
+    }
  
     // 1. 내 친구 코드 조회
     // GET /friends/users/me/friend-code
@@ -161,8 +169,45 @@ public class FriendController {
             @PathVariable String invitationId) {
         return ResponseEntity.ok(friendService.cancelHomeInvitation(currentUid, parseHomeInvitationId(invitationId)));
     }
+
+    // 16. 진행 중인 친구 집 방문 세션 조회
+    // GET /friends/home-visits/active
+    @GetMapping("/home-visits/active")
+    public ResponseEntity<FriendDto.ActiveHomeVisitsResponse> getActiveHomeVisits(
+            @RequestAttribute("currentUid") String currentUid) {
+        return ResponseEntity.ok(friendService.getActiveHomeVisits(currentUid));
+    }
+
+    // 17. 친구 집 방문 종료
+    // POST /friends/home-visits/home_visit_1/leave
+    @PostMapping("/home-visits/{visitSessionId}/leave")
+    public ResponseEntity<FriendDto.SingleHomeVisitSessionResponse> leaveHomeVisit(
+            @RequestAttribute("currentUid") String currentUid,
+            @PathVariable String visitSessionId) {
+        return ResponseEntity.ok(friendService.leaveHomeVisit(currentUid, parseHomeVisitId(visitSessionId)));
+    }
+
+    // 18. 친구 집 방문 채팅 메시지 조회
+    // GET /friends/home-visits/home_visit_1/messages
+    @GetMapping("/home-visits/{visitSessionId}/messages")
+    public ResponseEntity<FriendDto.HomeVisitMessagesResponse> getHomeVisitMessages(
+            @RequestAttribute("currentUid") String currentUid,
+            @PathVariable String visitSessionId) {
+        return ResponseEntity.ok(friendService.getHomeVisitMessages(currentUid, parseHomeVisitId(visitSessionId)));
+    }
+
+    // 19. 친구 집 방문 채팅 메시지 보내기
+    // POST /friends/home-visits/home_visit_1/messages
+    @PostMapping("/home-visits/{visitSessionId}/messages")
+    public ResponseEntity<FriendDto.SingleHomeVisitMessageResponse> sendHomeVisitMessage(
+            @RequestAttribute("currentUid") String currentUid,
+            @PathVariable String visitSessionId,
+            @RequestBody FriendDto.SendHomeVisitMessageRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(friendService.sendHomeVisitMessage(currentUid, parseHomeVisitId(visitSessionId), request));
+    }
  
-    // 16. 친구 삭제
+    // 20. 친구 삭제
     // DELETE /friends/{friendUserId}
     @DeleteMapping("/{friendUserId}")
     public ResponseEntity<Void> deleteFriend(
@@ -172,7 +217,7 @@ public class FriendController {
         return ResponseEntity.noContent().build();
     }
  
-    // 17. 친구에게 메시지 보내기
+    // 21. 친구에게 메시지 보내기
     // POST /friends/{friendUserId}/messages
     @PostMapping("/{friendUserId}/messages")
     public ResponseEntity<FriendDto.SingleMessageResponse> sendMessage(
@@ -182,7 +227,7 @@ public class FriendController {
         return ResponseEntity.status(HttpStatus.CREATED).body(friendService.sendMessage(currentUid, friendUserId, request));
     }
  
-    // 18. 특정 친구와의 메시지 목록 조회
+    // 22. 특정 친구와의 메시지 목록 조회
     // GET /friends/{friendUserId}/messages
     @GetMapping("/{friendUserId}/messages")
     public ResponseEntity<FriendDto.FriendMessagesResponse> getMessages(

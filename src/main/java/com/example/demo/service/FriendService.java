@@ -10,6 +10,9 @@ import com.example.demo.entity.Friendship;
 import com.example.demo.entity.FriendshipStatus;
 import com.example.demo.entity.HomeInvitation;
 import com.example.demo.entity.HomeInvitationStatus;
+import com.example.demo.entity.HomeVisitMessage;
+import com.example.demo.entity.HomeVisitSession;
+import com.example.demo.entity.HomeVisitStatus;
 import com.example.demo.entity.Pet;
 import com.example.demo.entity.Room;
 import com.example.demo.entity.RoomFurniture;
@@ -19,6 +22,8 @@ import com.example.demo.repository.FriendMessageRepository;
 import com.example.demo.repository.FriendRequestRepository;
 import com.example.demo.repository.FriendshipRepository;
 import com.example.demo.repository.HomeInvitationRepository;
+import com.example.demo.repository.HomeVisitMessageRepository;
+import com.example.demo.repository.HomeVisitSessionRepository;
 import com.example.demo.repository.PetRepository;
 import com.example.demo.repository.RoomFurnitureRepository;
 import com.example.demo.repository.RoomRepository;
@@ -40,11 +45,13 @@ public class FriendService {
     private final FriendshipRepository friendshipRepository;
     private final FriendMessageRepository messageRepository;
     private final HomeInvitationRepository homeInvitationRepository;
+    private final HomeVisitSessionRepository homeVisitSessionRepository;
+    private final HomeVisitMessageRepository homeVisitMessageRepository;
     private final RoomRepository roomRepository;
     private final RoomFurnitureRepository roomFurnitureRepository;
     private final PetRepository petRepository;
  
-    private static final int MAX_MESSAGE_LENGTH = 500;
+    private static final int MAX_MESSAGE_LENGTH = 120;
  
     // ==========================================
     // 헬퍼 메서드: 엔티티 -> DTO 변환
@@ -201,6 +208,89 @@ public class FriendService {
             return true;
         }
         return false;
+    }
+
+    private boolean markVisitExpiredIfNeeded(HomeVisitSession session, LocalDateTime now) {
+        if (session.getStatus() == HomeVisitStatus.ACTIVE
+                && session.getExpiresAt() != null
+                && session.getExpiresAt().isBefore(now)) {
+            session.setStatus(HomeVisitStatus.EXPIRED);
+            session.setEndedAt(now);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isHomeVisitParticipant(HomeVisitSession session, String currentUid) {
+        return session.getHostUser().getUid().equals(currentUid)
+                || session.getVisitorUser().getUid().equals(currentUid);
+    }
+
+    private HomeVisitSession getAuthorizedHomeVisitSession(String currentUid, Long sessionId) {
+        HomeVisitSession session = homeVisitSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.HOME_VISIT_NOT_FOUND));
+        if (!isHomeVisitParticipant(session, currentUid)) {
+            throw new CustomApiException(ErrorCode.NOT_HOME_VISIT_PARTICIPANT);
+        }
+        return session;
+    }
+
+    private HomeVisitSession getActiveHomeVisitSession(String currentUid, Long sessionId, LocalDateTime now) {
+        HomeVisitSession session = getAuthorizedHomeVisitSession(currentUid, sessionId);
+        if (session.getStatus() != HomeVisitStatus.ACTIVE || markVisitExpiredIfNeeded(session, now)) {
+            throw new CustomApiException(ErrorCode.HOME_VISIT_NOT_ACTIVE);
+        }
+        return session;
+    }
+
+    private HomeVisitSession createOrReuseHomeVisitSession(HomeInvitation invitation, LocalDateTime now) {
+        User host = invitation.getFromUser();
+        User visitor = invitation.getToUser();
+        HomeVisitSession existing = homeVisitSessionRepository
+                .findByHostUserAndVisitorUserAndStatus(host, visitor, HomeVisitStatus.ACTIVE)
+                .orElse(null);
+
+        if (existing != null && !markVisitExpiredIfNeeded(existing, now)) {
+            return existing;
+        }
+
+        HomeVisitSession session = HomeVisitSession.builder()
+                .invitation(invitation)
+                .hostUser(host)
+                .visitorUser(visitor)
+                .status(HomeVisitStatus.ACTIVE)
+                .startedAt(now)
+                .expiresAt(now.plusHours(2))
+                .build();
+        return homeVisitSessionRepository.save(session);
+    }
+
+    private FriendDto.FriendHomeVisitSession convertToHomeVisitSessionDto(HomeVisitSession session, LocalDateTime now) {
+        FriendDto.FriendPetSnapshot visitorPetSnapshot = petRepository.findByUserId(session.getVisitorUser().getId())
+                .map(this::convertToPetSnapshotDto)
+                .orElse(null);
+
+        return FriendDto.FriendHomeVisitSession.builder()
+                .id("home_visit_" + session.getId())
+                .hostUser(convertToUserDto(session.getHostUser()))
+                .visitorUser(convertToUserDto(session.getVisitorUser()))
+                .status(session.getStatus())
+                .startedAt(session.getStartedAt())
+                .endedAt(session.getEndedAt())
+                .expiresAt(session.getExpiresAt())
+                .hostHomeSnapshot(buildHomeSnapshot(session.getHostUser(), now))
+                .visitorPetSnapshot(visitorPetSnapshot)
+                .build();
+    }
+
+    private FriendDto.HomeVisitMessage convertToHomeVisitMessageDto(HomeVisitMessage message) {
+        return FriendDto.HomeVisitMessage.builder()
+                .id("home_visit_msg_" + message.getId())
+                .visitSessionId("home_visit_" + message.getSession().getId())
+                .senderUserId(message.getSenderUser().getUid())
+                .text(message.getContent())
+                .sentAt(message.getCreatedAt())
+                .build();
     }
  
     @Transactional(readOnly = true)
@@ -361,6 +451,13 @@ public class FriendService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        HomeVisitSession activeVisit = homeVisitSessionRepository
+                .findByHostUserAndVisitorUserAndStatus(sender, receiver, HomeVisitStatus.ACTIVE)
+                .orElse(null);
+        if (activeVisit != null && !markVisitExpiredIfNeeded(activeVisit, now)) {
+            throw new CustomApiException(ErrorCode.HOME_VISIT_ALREADY_ACTIVE);
+        }
+
         HomeInvitation existing = homeInvitationRepository
                 .findByFromUserAndToUserAndStatus(sender, receiver, HomeInvitationStatus.PENDING)
                 .orElse(null);
@@ -433,10 +530,12 @@ public class FriendService {
 
         invitation.setStatus(HomeInvitationStatus.ACCEPTED);
         invitation.setRespondedAt(now);
+        HomeVisitSession visitSession = createOrReuseHomeVisitSession(invitation, now);
 
         return new FriendDto.AcceptHomeInvitationResponse(
                 convertToHomeInvitationDto(invitation),
-                buildHomeSnapshot(invitation.getFromUser(), now)
+                buildHomeSnapshot(invitation.getFromUser(), now),
+                convertToHomeVisitSessionDto(visitSession, now)
         );
     }
 
@@ -477,6 +576,81 @@ public class FriendService {
         invitation.setRespondedAt(now);
         return new FriendDto.SingleHomeInvitationResponse(convertToHomeInvitationDto(invitation));
     }
+
+    @Transactional
+    public FriendDto.ActiveHomeVisitsResponse getActiveHomeVisits(String currentUid) {
+        User me = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
+        LocalDateTime now = LocalDateTime.now();
+
+        List<FriendDto.FriendHomeVisitSession> hosting = homeVisitSessionRepository
+                .findByHostUserAndStatusOrderByStartedAtDesc(me, HomeVisitStatus.ACTIVE)
+                .stream()
+                .filter(session -> !markVisitExpiredIfNeeded(session, now))
+                .map(session -> convertToHomeVisitSessionDto(session, now))
+                .collect(Collectors.toList());
+
+        List<FriendDto.FriendHomeVisitSession> visiting = homeVisitSessionRepository
+                .findByVisitorUserAndStatusOrderByStartedAtDesc(me, HomeVisitStatus.ACTIVE)
+                .stream()
+                .filter(session -> !markVisitExpiredIfNeeded(session, now))
+                .map(session -> convertToHomeVisitSessionDto(session, now))
+                .collect(Collectors.toList());
+
+        return new FriendDto.ActiveHomeVisitsResponse(hosting, visiting);
+    }
+
+    @Transactional
+    public FriendDto.SingleHomeVisitSessionResponse leaveHomeVisit(String currentUid, Long sessionId) {
+        LocalDateTime now = LocalDateTime.now();
+        HomeVisitSession session = getActiveHomeVisitSession(currentUid, sessionId, now);
+        session.setStatus(HomeVisitStatus.ENDED);
+        session.setEndedAt(now);
+
+        return new FriendDto.SingleHomeVisitSessionResponse(convertToHomeVisitSessionDto(session, now));
+    }
+
+    @Transactional(readOnly = true)
+    public FriendDto.HomeVisitMessagesResponse getHomeVisitMessages(String currentUid, Long sessionId) {
+        HomeVisitSession session = getAuthorizedHomeVisitSession(currentUid, sessionId);
+        List<FriendDto.HomeVisitMessage> messages = homeVisitMessageRepository
+                .findBySessionOrderByCreatedAtAsc(session)
+                .stream()
+                .map(this::convertToHomeVisitMessageDto)
+                .collect(Collectors.toList());
+
+        return new FriendDto.HomeVisitMessagesResponse(messages, null);
+    }
+
+    @Transactional
+    public FriendDto.SingleHomeVisitMessageResponse sendHomeVisitMessage(
+            String currentUid,
+            Long sessionId,
+            FriendDto.SendHomeVisitMessageRequest request
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        HomeVisitSession session = getActiveHomeVisitSession(currentUid, sessionId, now);
+        User sender = userRepository.findByUid(currentUid)
+                .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
+
+        String text = request == null ? null : request.getText();
+        if (text == null || text.isBlank()) {
+            throw new CustomApiException(ErrorCode.EMPTY_MESSAGE);
+        }
+        String trimmedText = text.trim();
+        if (trimmedText.length() > MAX_MESSAGE_LENGTH) {
+            throw new CustomApiException(ErrorCode.MESSAGE_TOO_LONG);
+        }
+
+        HomeVisitMessage message = HomeVisitMessage.builder()
+                .session(session)
+                .senderUser(sender)
+                .content(trimmedText)
+                .build();
+        homeVisitMessageRepository.save(message);
+
+        return new FriendDto.SingleHomeVisitMessageResponse(convertToHomeVisitMessageDto(message));
+    }
  
     @Transactional
     public void deleteFriend(String currentUid, String friendUserId) {
@@ -505,14 +679,15 @@ public class FriendService {
         if (!friendshipRepository.existsByUserAndFriend(sender, receiver)) throw new CustomApiException(ErrorCode.NOT_FRIENDS);
  
         // 메시지 내용 검증
-        String text = request.getText();
+        String text = request == null ? null : request.getText();
         if (text == null || text.isBlank()) throw new CustomApiException(ErrorCode.EMPTY_MESSAGE);
-        if (text.length() > MAX_MESSAGE_LENGTH) throw new CustomApiException(ErrorCode.MESSAGE_TOO_LONG);
+        String trimmedText = text.trim();
+        if (trimmedText.length() > MAX_MESSAGE_LENGTH) throw new CustomApiException(ErrorCode.MESSAGE_TOO_LONG);
  
         FriendMessage message = FriendMessage.builder()
                 .fromUser(sender)
                 .toUser(receiver)
-                .content(text)
+                .content(trimmedText)
                 .build();
         messageRepository.save(message);
  
@@ -532,12 +707,14 @@ public class FriendService {
         User friend = userRepository.findByUid(friendUserId)
                 .orElseThrow(() -> new CustomApiException(ErrorCode.USER_NOT_FOUND));
  
-        List<FriendMessage> received = messageRepository.findByToUserOrderByCreatedAtDesc(me);
-        List<FriendDto.FriendMessage> msgs = received.stream()
-                .filter(m -> m.getFromUser().getUid().equals(friendUserId))
+        if (!friendshipRepository.existsByUserAndFriend(me, friend)) {
+            throw new CustomApiException(ErrorCode.NOT_FRIENDS);
+        }
+
+        List<FriendDto.FriendMessage> msgs = messageRepository.findConversation(me, friend).stream()
                 .map(m -> FriendDto.FriendMessage.builder()
                         .id("msg_" + m.getId())
-                        .friendUserId(m.getFromUser().getUid())
+                        .friendUserId(friend.getUid())
                         .senderUserId(m.getFromUser().getUid())
                         .text(m.getContent())
                         .sentAt(m.getCreatedAt())

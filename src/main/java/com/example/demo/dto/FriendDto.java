@@ -3,6 +3,7 @@ package com.example.demo.dto;
 import com.example.demo.entity.FriendRequestStatus;
 import com.example.demo.entity.FriendshipStatus;
 import com.example.demo.entity.HomeInvitationStatus;
+import com.example.demo.entity.HomeVisitStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -149,6 +150,28 @@ public class FriendDto {
         private FriendAnchor anchor;
     }
 
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class FriendHomeVisitSession {
+        private String id;
+        private FriendUser hostUser;
+        private FriendUser visitorUser;
+        private HomeVisitStatus status;
+        private LocalDateTime startedAt;
+        private LocalDateTime endedAt;
+        private LocalDateTime expiresAt;
+        private FriendHomeSnapshot hostHomeSnapshot;
+        private FriendPetSnapshot visitorPetSnapshot;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class HomeVisitMessage {
+        private String id;
+        private String visitSessionId;
+        private String senderUserId;
+        private String text;
+        private LocalDateTime sentAt;
+    }
+
     // ==========================================
     // 3. API 요청 (Request) DTO
     // ==========================================
@@ -166,6 +189,11 @@ public class FriendDto {
     public static class SendHomeInvitationRequest {
         private String friendUserId;
         private String message;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+    public static class SendHomeVisitMessageRequest {
+        private String text;
     }
 
     // ==========================================
@@ -238,5 +266,28 @@ public class FriendDto {
     public static class AcceptHomeInvitationResponse {
         private FriendHomeInvitation invitation;
         private FriendHomeSnapshot homeSnapshot;
+        private FriendHomeVisitSession visitSession;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class ActiveHomeVisitsResponse {
+        private List<FriendHomeVisitSession> hosting;
+        private List<FriendHomeVisitSession> visiting;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class SingleHomeVisitSessionResponse {
+        private FriendHomeVisitSession visitSession;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class SingleHomeVisitMessageResponse {
+        private HomeVisitMessage message;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class HomeVisitMessagesResponse {
+        private List<HomeVisitMessage> messages;
+        private String nextCursor;
     }
 }
